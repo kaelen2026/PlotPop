@@ -84,12 +84,21 @@ importers:
 
   apps/web:
     dependencies:
+      '@next/env':
+        specifier: ^16.2.12
+        version: 16.2.12
+      '@plotpop/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@plotpop/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@plotpop/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      better-auth:
+        specifier: ^1.6.25
+        version: 1.6.25(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0))(next@16.2.12(@playwright/test@1.62.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.22.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.10)
       lucide-react:
         specifier: ^1.27.0
         version: 1.27.0(react@19.2.8)

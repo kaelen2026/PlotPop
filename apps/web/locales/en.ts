@@ -14,6 +14,7 @@
  * `locales/en.test.ts` fails if a module is missing from the aggregate, so a
  * forgotten line cannot reach the browser as absent copy.
  */
+import { authMessages } from "./auth";
 import { creatorHome } from "./creator-home";
 import { creditCost } from "./credit-cost";
 import { generationStatus } from "./generation-status";
@@ -24,6 +25,7 @@ import { theme } from "./theme";
 import { wizard } from "./wizard";
 
 export const messages = {
+  auth: authMessages,
   creatorHome,
   creditCost,
   generationStatus,
