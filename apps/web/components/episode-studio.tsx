@@ -3,6 +3,7 @@
 import { GenerationStatusBadge } from "@plotpop/ui/components/generation-status-badge";
 import { useState } from "react";
 import { SceneNavigator } from "@/components/scene-navigator";
+import { ShotTimeline } from "@/components/shot-timeline";
 import type { PrototypeEpisodeDetail } from "@/lib/prototype-episode-detail";
 import { formatTimecode } from "@/lib/timecode";
 import { messages } from "@/locales/en";
@@ -63,6 +64,12 @@ export function EpisodeStudio({ episode }: { episode: PrototypeEpisodeDetail }) 
               {formatTimecode(currentShot?.durationSeconds ?? 0)}
             </span>
           </div>
+
+          <ShotTimeline
+            shots={shots}
+            currentShotId={currentShotId}
+            onSelectShot={(shot) => setCurrentShotId(shot.id)}
+          />
         </section>
 
         <section

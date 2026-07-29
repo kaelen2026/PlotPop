@@ -7,6 +7,11 @@ export const studio = {
     sceneLabel: "Scene",
     shotLabel: "Shot",
   },
+  timeline: {
+    label: "Episode timeline",
+    elapsedLabel: "At",
+    totalLabel: "of",
+  },
   preview: {
     label: "Preview",
     empty: "No frame yet for this shot.",

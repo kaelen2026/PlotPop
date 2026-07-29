@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
 - F-02.02：`system | light | dark` 切换器。shadcn/ui 接入 `packages/ui`（`components.json`、`cn()`、`toggle`/`toggle-group`/`skeleton`），Vitest + Testing Library 组件测试，以及 `apps/web/locales/en.ts` 本地化骨架。切换写 `localStorage` 并即时改根属性，不刷新页面；选 `system` 时持续跟随操作系统。
 - F-02.03：Creator Home 空状态。`apps/web/components/app-shell.tsx` 是登录后页面的外壳（Skip 链接 + Header + `container-app`），`/home` 是空状态（`empty`、`button`），`/` 是通向它的临时落地页。路由集中在 `apps/web/lib/routes.ts`。
+- F-02.08：Studio 时间线。§13 的四个 Component Token（Track / Clip / Selection / Playhead）落进 `theme.css` 并纳入对比度验证；时间线按时长比例排布镜头，Medium 以下不渲染（§8.4）。当前镜头的选中表达统一为 accent 边界（§6.2），场景导航区同步改过来。
 - F-02.07：生成前的积分预估与确认（§12.5）。`creditEstimateSchema` 进 `packages/contracts`，含 `coversEstimate`（按**上界**判断，不是下界）与 `requiresReconfirmation`。`CreditCost` 组件进 `packages/ui`，动画步骤用它，余额不足时按钮直接禁用。
 - F-02.06：Episode Studio 三栏工作台。`/episodes/[id]` 出现，剧集列表的标题成为进入它的链接。§8.4 的三栏宽度实现为 `studio-grid` utility（业务代码不写任意值），Scene Navigator 可浏览场景与镜头并选中镜头，Preview 与 Inspector 作为稳定区域存在但内容随后续切片补齐。无障碍门禁扩展到全部四个页面，视觉基线新增 Studio 的 Light/Dark × 两个层级。
 - F-02.05：五步创作向导。`/episodes/new` 出现，Creator Home 的入口不再悬空。脚本步骤有真实表单与 Zod 校验（`episodeDraftInputSchema` 在 `packages/contracts`），其余四步可走通但只展示该步要做什么，表单随后续切片补齐。新增注册表组件：`field`、`input`、`textarea`、`label`、`separator`、`alert`。
@@ -86,6 +87,9 @@ pnpm --filter <workspace> test -- -t "测试名称"
 镜像与容器验证：
 
 ```bash
+# 重画视觉基线要直接调脚本，pnpm 不会把 --update-snapshots 转发进去：
+e2e/visual.sh --update-snapshots          # 之后必须逐张肉眼检查
+
 docker build -f docker/api.Dockerfile -t plotpop-api .
 docker/smoke.sh plotpop-api:latest api 3001   # CI 用的同一个脚本
 ```

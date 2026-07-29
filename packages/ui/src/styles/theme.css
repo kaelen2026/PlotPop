@@ -116,6 +116,23 @@
   --preview: var(--pp-screen-900);
   --preview-foreground: var(--pp-screen-50);
 
+  /*
+   * §13 Component Tokens for the Episode Studio timeline. Aliases of semantic
+   * tokens rather than new colours: §4.3 wants component tokens only where a
+   * semantic token cannot say what is meant, and naming the parts is what stops a
+   * page inventing a track colour. Aliasing also means §6.6's verification of the
+   * underlying pairs carries over unchanged.
+   *
+   * `track` is the groove the clips sit in, which is exactly what §6.1 names
+   * `surface-sunken` for. `selection` is `accent`, per §6.2, and it is a boundary
+   * rather than a fill so a bright brand colour never covers a whole row (§5.4).
+   */
+  --timeline-track: var(--surface-sunken);
+  --timeline-clip: var(--surface-raised);
+  --timeline-clip-foreground: var(--foreground);
+  --timeline-selection: var(--accent);
+  --timeline-playhead: var(--accent);
+
   --brand-pink: var(--pp-pink-600);
   --brand-blue: var(--pp-blue-600);
   --brand-lime: var(--pp-lime-500);
@@ -170,6 +187,13 @@
 
   --preview: var(--pp-screen-950);
   --preview-foreground: var(--pp-screen-50);
+
+  /* §13, see the Light block for why these are aliases. */
+  --timeline-track: var(--surface-sunken);
+  --timeline-clip: var(--surface-raised);
+  --timeline-clip-foreground: var(--foreground);
+  --timeline-selection: var(--accent);
+  --timeline-playhead: var(--accent);
 
   --brand-pink: var(--pp-pink-300);
   --brand-blue: var(--pp-blue-200);
@@ -227,6 +251,12 @@
 
   --color-preview: var(--preview);
   --color-preview-foreground: var(--preview-foreground);
+
+  --color-timeline-track: var(--timeline-track);
+  --color-timeline-clip: var(--timeline-clip);
+  --color-timeline-clip-foreground: var(--timeline-clip-foreground);
+  --color-timeline-selection: var(--timeline-selection);
+  --color-timeline-playhead: var(--timeline-playhead);
 
   --color-brand-pink: var(--brand-pink);
   --color-brand-blue: var(--brand-blue);

@@ -152,6 +152,9 @@ const TEXT_PAIRS: [foreground: string, background: string][] = [
   ["warning-foreground", "warning"],
   ["info-foreground", "info"],
   ["preview-foreground", "preview"],
+  // §13's timeline surfaces carry shot labels and tick marks.
+  ["timeline-clip-foreground", "timeline-clip"],
+  ["timeline-clip-foreground", "timeline-track"],
 ];
 
 /**
@@ -185,6 +188,11 @@ const NON_TEXT_PAIRS: [foreground: string, background: string][] = [
   ["warning", "surface"],
   ["info", "background"],
   ["info", "surface"],
+  // The clip's edge against its groove, and the playhead against both (SC 1.4.11).
+  ["timeline-selection", "timeline-track"],
+  ["timeline-selection", "timeline-clip"],
+  ["timeline-playhead", "timeline-track"],
+  ["timeline-playhead", "timeline-clip"],
 ];
 
 /**

@@ -614,6 +614,12 @@ Scene Card 和 Shot Card 通过正式 Variant 扩展，不通过页面 Class 覆
 - 当前场景、当前镜头和当前批准版本必须有不同但一致的状态表达。
 - 视频预览背景在两种主题下使用 `preview` Token。
 - Timeline Track、Clip、Playhead 和 Selection 使用专用 Component Token。
+
+这四个 Token 实现为语义 Token 的**别名**（`--timeline-track` = `surface-sunken`，正是 §6.1 为「轨道槽」定义的下沉表面；`--timeline-clip` = `surface-raised`；`--timeline-selection` 与 `--timeline-playhead` = `accent`，§6.2 把「选中」判给 accent）。别名而非新色值有两个好处：§6.6 对底层配对的验证自动适用，而给部件命名又阻止了页面自己发明轨道颜色。
+
+选中表达是**边界而不是填充**：§5.4 不允许亮品牌色铺满整个表面，所以当前镜头在时间线上是 accent 描边、在场景导航区是 accent 左边缘。同一个「当前」在两处读起来一致（§13）。
+
+时间线在 Medium 以下**不渲染**，而不是被压缩（§8.4）。小屏用场景导航区逐镜头访问；Small 层级的视觉基线就是这条规则的证据。
 - 时间码使用统一 Mono 排版。
 - 失败镜头不阻断其他镜头的浏览。
 - Inspector 表单遵循统一 Field 规范。

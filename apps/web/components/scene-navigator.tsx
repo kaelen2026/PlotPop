@@ -1,6 +1,7 @@
 import { GenerationStatusBadge } from "@plotpop/ui/components/generation-status-badge";
 import { cn } from "@plotpop/ui/lib/cn";
 import type { PrototypeScene, PrototypeShot } from "@/lib/prototype-episode-detail";
+import { shotAccessibleName } from "@/lib/shot-label";
 import { formatTimecode } from "@/lib/timecode";
 import { messages } from "@/locales/en";
 
@@ -58,12 +59,7 @@ export function SceneNavigator({
                     <button
                       type="button"
                       aria-current={isCurrent ? "true" : undefined}
-                      // Named explicitly because the parts are separate inline
-                      // elements: concatenated, the number runs into the timecode
-                      // and the name reads "Shot 40:08Completed". Every word still
-                      // comes from the localisation resource, and the name
-                      // contains all the visible text (WCAG 2.5.3).
-                      aria-label={`${messages.studio.navigator.shotLabel} ${shot.number}, ${formatTimecode(shot.durationSeconds)}, ${messages.generationStatus[shot.status]}`}
+                      aria-label={shotAccessibleName(shot)}
                       onClick={() => onSelectShot(shot)}
                       className={cn(
                         // §13: a dense list may tighten spacing but not shrink the
@@ -74,7 +70,13 @@ export function SceneNavigator({
                         // on one line — the state takes its own line rather than
                         // the label wrapping mid phrase.
                         "xl:flex-col xl:items-start xl:gap-1",
-                        isCurrent ? "bg-secondary text-secondary-foreground" : "hover:bg-muted",
+                        // §6.2 gives 选中 to accent, so the current shot reads the
+                        // same way here as on the timeline. An accent edge rather
+                        // than an accent fill, because §5.4 keeps a bright brand
+                        // colour off a whole surface.
+                        isCurrent
+                          ? "border-l-2 border-l-timeline-selection bg-secondary text-secondary-foreground"
+                          : "border-l-2 border-l-transparent hover:bg-muted",
                       )}
                     >
                       <span className="flex items-center gap-2 whitespace-nowrap">
