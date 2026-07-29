@@ -1,0 +1,18 @@
+{
+  "extends": "../tooling/typescript/base.json",
+  "compilerOptions": {
+    // Playwright drives a browser, so specs touch `window` and `document` inside
+    // `page.evaluate` callbacks.
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "incremental": false
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"],
+  "exclude": ["node_modules"]
+}
