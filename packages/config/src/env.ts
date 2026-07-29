@@ -1,12 +1,8 @@
-import type { ServiceName } from "@plotpop/contracts";
+import { logLevelSchema, type ServiceName } from "@plotpop/contracts";
 import { z } from "zod";
 
 /** A raw environment, normally `process.env`. */
 export type EnvironmentSource = Readonly<Record<string, string | undefined>>;
-
-export const logLevelSchema = z.enum(["debug", "info", "warn", "error"]);
-
-export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export const runtimeModeSchema = z.enum(["development", "test", "production"]);
 
