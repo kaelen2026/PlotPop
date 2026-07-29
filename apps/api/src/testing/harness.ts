@@ -44,6 +44,7 @@ export async function createApiHarness(): Promise<ApiHarness> {
 
   const app = createApp({
     auth,
+    db: database.db,
     readiness: async () => ({ status: "ready", service: "api", dependencies: [] }),
   });
 

@@ -1,6 +1,7 @@
 import type { AuthService } from "@plotpop/auth";
 import type { ReadinessResponse } from "@plotpop/contracts";
 import { healthResponseSchema, readinessResponseSchema } from "@plotpop/contracts";
+import type { Database } from "@plotpop/db";
 import { testClient } from "hono/testing";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
@@ -16,7 +17,11 @@ const stubAuth: AuthService = {
 };
 
 function appWith(readiness: ReadinessResponse) {
-  return createApp({ readiness: async () => readiness, auth: stubAuth });
+  // Liveness and readiness never reach a query. A handle that would throw on use
+  // is the point: if either route grew a database read, these tests would say so.
+  const db = {} as Database;
+
+  return createApp({ readiness: async () => readiness, auth: stubAuth, db });
 }
 
 const ready: ReadinessResponse = {

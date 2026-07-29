@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "./client.js";
 import { creditAccount, WORKSPACE_OWNER_ROLE, workspace, workspaceMember } from "./schema.js";
 
@@ -17,6 +17,15 @@ export type WorkspaceOwner = {
   readonly email: string;
 };
 
+/** Projected rather than `select()`ing the row, so a new column is never returned by accident. */
+const workspaceColumns = {
+  id: workspace.id,
+  name: workspace.name,
+  ownerUserId: workspace.ownerUserId,
+  revision: workspace.revision,
+  createdAt: workspace.createdAt,
+};
+
 /**
  * Every workspace the caller belongs to.
  *
@@ -29,19 +38,55 @@ export async function listWorkspacesForUser(
   userId: string,
 ): Promise<WorkspaceRecord[]> {
   const rows = await db
-    .select({
-      id: workspace.id,
-      name: workspace.name,
-      ownerUserId: workspace.ownerUserId,
-      revision: workspace.revision,
-      createdAt: workspace.createdAt,
-    })
+    .select(workspaceColumns)
     .from(workspace)
     .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
     .where(eq(workspaceMember.userId, userId))
     .orderBy(workspace.createdAt, workspace.id);
 
   return rows;
+}
+
+/**
+ * One workspace, but only if the caller is a member of it.
+ *
+ * Membership is part of the query rather than a check a route performs afterwards:
+ * a route that forgot the check would still compile, whereas this cannot return a
+ * row the caller has no claim to. Absent and not-permitted are the same answer,
+ * because telling them apart is how an id in a url becomes a way to find out whose
+ * work exists.
+ */
+export async function findWorkspaceForMember(
+  db: Database,
+  membership: { readonly workspaceId: string; readonly userId: string },
+): Promise<WorkspaceRecord | null> {
+  const rows = await db
+    .select(workspaceColumns)
+    .from(workspace)
+    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, workspace.id))
+    .where(
+      and(eq(workspace.id, membership.workspaceId), eq(workspaceMember.userId, membership.userId)),
+    )
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+/**
+ * The workspace a user was given at sign-up. MVP has exactly one per user (§20.1),
+ * so this is what the creator home opens into.
+ */
+export async function findPersonalWorkspace(
+  db: Database,
+  userId: string,
+): Promise<WorkspaceRecord | null> {
+  const rows = await db
+    .select(workspaceColumns)
+    .from(workspace)
+    .where(and(eq(workspace.ownerUserId, userId), eq(workspace.isPersonal, true)))
+    .limit(1);
+
+  return rows[0] ?? null;
 }
 
 /**

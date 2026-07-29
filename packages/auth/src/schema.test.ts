@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
+import { MINIMUM_PASSWORD_LENGTH } from "@plotpop/contracts";
 import { getAuthTables } from "better-auth/db";
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig, type PgTable } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { MINIMUM_PASSWORD_LENGTH } from "./auth.js";
 import { authSchema } from "./schema.js";
 
 /**
@@ -77,9 +77,10 @@ describe("better auth tables", () => {
 });
 
 describe("password policy", () => {
-  // Better Auth defaults to 8. The floor is stated here so lowering it is a
-  // deliberate edit to a test rather than an unnoticed default.
-  it("requires at least twelve characters", () => {
+  // Better Auth defaults to 8, so the api has to say otherwise. The shared
+  // constant is what the web tier's form validates against too, so this pins the
+  // one number both tiers read rather than a copy of it.
+  it("configures Better Auth from the shared minimum length", () => {
     expect(MINIMUM_PASSWORD_LENGTH).toBe(12);
   });
 });
