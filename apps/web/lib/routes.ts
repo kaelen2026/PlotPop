@@ -8,5 +8,10 @@ export const routes = {
   newEpisode: "/episodes/new",
 } as const;
 
+/** An episode's Studio. A function because the id is part of the path. */
+export function episodeStudioRoute(episodeId: string): string {
+  return `/episodes/${episodeId}`;
+}
+
 /** The skip link target inside the application shell (§15). */
 export const MAIN_CONTENT_ID = "main-content";
