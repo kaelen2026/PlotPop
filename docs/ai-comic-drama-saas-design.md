@@ -575,6 +575,10 @@ OpenTelemetry 串联 API、Outbox、队列、Worker、供应商调用和对象�
 
 ### 31.1 测试
 
+- 所有行为任务使用 TDD，按 Red、Green、Refactor 循环实现。
+- Red 阶段先证明测试因目标行为缺失而失败；Green 只实现使当前测试通过的最小代码；Refactor 不改变外部行为。
+- 领域规则使用纯函数单元测试；数据库约束使用真实 PostgreSQL 集成测试；API 使用 Hono `testClient()`；Worker 使用 Fake Provider 与真实队列、数据库测试环境；关键用户旅程使用 Playwright。
+- 技术 Spike 不得直接转为生产实现，正式代码必须重新按 TDD 完成。
 - Domain 单元测试：状态机、镜头版本、费用计算和账本不变量。
 - API 集成测试：Better Auth、Workspace 隔离、乐观锁、幂等接口、签名上传和 Outbox。
 - Worker 测试：重试、超时、取消、回调乱序、重复回调和积分补偿。
