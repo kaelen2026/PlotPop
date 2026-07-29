@@ -13,7 +13,7 @@ The repository holds an engineering skeleton and no product features yet. Task F
 
 Also in place: `packages/observability` (structured logging and readiness) and `packages/api-client` (the precompiled Hono RPC client).
 
-Not there yet: the domain model and database, Better Auth, every remaining `packages/` entry, Playwright, and any product feature at all.
+Not there yet: the domain model and database, Better Auth, every remaining `packages/` entry, and any product feature at all.
 
 Everything under `docs/` is the behavior contract the implementation is held to.
 
@@ -96,11 +96,10 @@ pnpm build
 pnpm typecheck
 pnpm test           # Vitest
 pnpm test:coverage  # Vitest with v8 coverage
+pnpm test:e2e       # Playwright: behavior and accessibility in a real browser
 pnpm lint           # Biome format, lint, and import sorting; warnings fail
 pnpm lint:fix       # the same, writing back what can be fixed automatically
 ```
-
-Still to come: `pnpm test:e2e` with Playwright.
 
 `pre-commit` checks staged files without rewriting them, so a formatting failure rejects the commit instead of silently editing what you staged. `commit-msg` runs commitlint. A focused or skipped test fails both the suite and the linter; keeping a skip requires a `biome-ignore` comment that states why. CI reruns every gate over the whole repository, because the local hooks can be skipped with `--no-verify`.
 
@@ -116,6 +115,19 @@ Narrow to one workspace while developing:
 pnpm --filter <workspace> test
 pnpm --filter <workspace> typecheck
 ```
+
+### Browser tests
+
+Playwright downloads its browser once per machine, and the browser build belongs to the pinned `@playwright/test` version:
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+`pnpm test:e2e` type checks `e2e/` first, then runs the suite. It builds `@plotpop/web` and serves it on port 3100, so it is safe to run while `pnpm dev` holds 3000; Turborepo caches the build, so a repeat run pays for the server start only.
+
+The specs live in `e2e/` rather than inside `apps/web`, because `apps/web/tsconfig.json` compiles every `.ts` under the app and Vitest's default include claims `*.spec.ts` — a Playwright file in a workspace would be built by `next build` and executed by `pnpm test`. Everything runs at two viewports, 1440x900 for the Large tier and 390x844 for Small, the only two breakpoints `docs/design-system.md` §8.2 allows; specs whose subject is not the layout are listed in `playwright.config.ts` and run once.
 
 ### Probes
 
