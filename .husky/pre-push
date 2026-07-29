@@ -1,0 +1,13 @@
+# Reads the destination ref rather than the current branch, so `git push origin
+# HEAD:main` from a feature branch is caught too.
+#
+# git feeds one line per ref being pushed: <local ref> <local oid> <remote ref>
+# <remote oid>. A branch deletion arrives with an all-zero local oid, which this
+# rejects as well — dropping main is not a thing to do by accident.
+while read -r _local_ref _local_oid remote_ref _remote_oid; do
+	if [ "$remote_ref" = "refs/heads/main" ]; then
+		echo "husky - refusing to push to main. Open a pull request instead." >&2
+		echo "  git push -u origin \$(git branch --show-current)" >&2
+		exit 1
+	fi
+done

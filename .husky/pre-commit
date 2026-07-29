@@ -1,1 +1,13 @@
+# main is the baseline every branch is cut from, never a place to work. Refusing
+# here is cheap; discovering it after the commit costs a rebase.
+#
+# `--quiet` plus `|| true` keeps a detached HEAD passing: mid-rebase and
+# mid-bisect commits have no branch name and must not be mistaken for main.
+branch=$(git symbolic-ref --quiet --short HEAD || true)
+if [ "$branch" = "main" ]; then
+	echo "husky - refusing to commit on main." >&2
+	echo "  git worktree add -b feat/<slug> ../PlotPop-<slug> origin/main" >&2
+	exit 1
+fi
+
 pnpm exec lint-staged

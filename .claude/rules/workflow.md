@@ -71,7 +71,21 @@ commit，每个 commit 也必须满足第 8 节的原子性要求，且任一中
 - 改动必须通过 Pull Request 合入 `main`，并通过 CI 质量门禁。
 - 提交信息遵循 Conventional Commits，由 Husky `commit-msg` 和 commitlint 强制检查。
 
-> 例外：仅当用户明确要求「就在 main 上提交」时才可破例。
+这条规则由两层机制强制，不依赖自觉：
+
+| 层 | 位置 | 拦住什么 | 怎么绕过 |
+|---|---|---|---|
+| 本地钩子 | `.husky/pre-commit`、`.husky/pre-push` | 在 `main` 上 `commit`；推向 `refs/heads/main`（含 `HEAD:main` 与删除分支） | `--no-verify`，或钩子文件被删 |
+| 远端 Ruleset | GitHub `protect-main` | 直接 push、force-push、删除 `main`；CI 未通过或未走 PR 的合并 | 只能在 GitHub 设置里显式停用 Ruleset |
+
+两层互为兜底：本地钩子给的是即时反馈，远端 Ruleset 不依赖任何本地文件存在，所以它才是真正的
+底线。反过来，钩子让你在写完代码前就发现走错了分支，而不是在 push 被拒时才返工。
+
+`pre-commit` 只在分支名精确等于 `main` 时拒绝：`feat/maintain` 这类名字不受影响，Rebase 与
+Bisect 期间的 detached HEAD 也不受影响，否则正常的历史整理会被误拦。
+
+> 例外：仅当用户明确要求「就在 main 上提交」时才可破例。此时本地要 `--no-verify`，远端要先在
+> GitHub 停用 Ruleset —— 两步都是显式动作，不会习惯性发生。
 
 ## 4. 同步基线并检查现场
 
