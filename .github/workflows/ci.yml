@@ -34,6 +34,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `next.config.ts` parses the web environment, so `pnpm build` needs one.
+      # `.env.example` is the right source: `packages/config`'s tests parse it, so
+      # it is always a complete and valid environment, and a newly required
+      # variable cannot break this job separately from breaking those tests.
+      - name: Local environment
+        run: cp .env.example .env
+
       # Runs over the whole repository, not just staged files: the local hook can
       # be skipped with `--no-verify`, this cannot.
       - name: Lint and format
@@ -116,6 +123,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The Playwright web server builds and serves the app, so it needs the same
+      # environment `pnpm build` does; see the quality gates job.
+      - name: Local environment
+        run: cp .env.example .env
+
       # `--with-deps` installs the system libraries the browser needs; the browser
       # build itself belongs to the pinned @playwright/test version.
       - name: Install browser
@@ -153,6 +165,11 @@ jobs:
 
       # The script reads the installed Playwright version to pick its image tag.
       - run: pnpm install --frozen-lockfile
+
+      # The repository is bind mounted into the container, so the web server
+      # inside it reads this file; see the quality gates job.
+      - name: Local environment
+        run: cp .env.example .env
 
       - name: Compare against the committed baselines
         run: pnpm test:e2e:visual
