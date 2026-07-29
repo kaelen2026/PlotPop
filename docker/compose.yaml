@@ -14,6 +14,13 @@
 name: plotpop
 
 x-service-environment: &service-environment
+  # The images set NODE_ENV=production because that is what they are built for.
+  # This stack is not a deployment, and two behaviours key off the difference:
+  # `useSecureCookies` would mark the session cookie Secure, which a browser will
+  # not send back over http://localhost, and ADR-007's guard rejects a loopback
+  # trusted origin — which is the only origin that exists here. Production shape
+  # is checked by `docker/smoke.sh` in CI, where no browser has to sign in.
+  NODE_ENV: development
   LOG_LEVEL: ${LOG_LEVEL:-debug}
   # In-network addresses: the services reach each other by compose service name,
   # never through the published host ports.
