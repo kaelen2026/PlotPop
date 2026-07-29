@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { type HealthResponse } from "@plotpop/contracts";
+import type { HealthResponse } from "@plotpop/contracts";
 
 const liveness: HealthResponse = { status: "ok", service: "worker" };
 

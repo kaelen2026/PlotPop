@@ -1,4 +1,4 @@
-import { type HealthResponse } from "@plotpop/contracts";
+import type { HealthResponse } from "@plotpop/contracts";
 import { Hono } from "hono";
 
 const liveness: HealthResponse = { status: "ok", service: "api" };
