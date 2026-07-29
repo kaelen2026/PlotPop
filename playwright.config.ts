@@ -34,6 +34,15 @@ const smallViewport = { width: 390, height: 844 };
  */
 const viewportIndependentSpecs = ["**/health.spec.ts", "**/theme.spec.ts"];
 
+/**
+ * Visual regression runs in its own projects, and only when asked for by name:
+ * `pnpm test:e2e` covers behaviour and accessibility on any machine, while
+ * `pnpm test:e2e:visual` compares pixels inside the pinned Playwright container.
+ * A baseline is only valid for the renderer that produced it, and the container
+ * is the one renderer this repository keeps baselines for.
+ */
+const visualSpecs = ["**/visual.spec.ts"];
+
 export default defineConfig({
   testDir: "./e2e",
 
@@ -55,7 +64,21 @@ export default defineConfig({
 
   expect: {
     timeout: 5_000,
+    toHaveScreenshot: {
+      // Font rasterisation still moves by a pixel or two between Chromium builds
+      // inside the same image. A ratio this small absorbs that and nothing else:
+      // a changed colour, radius or spacing is thousands of pixels.
+      maxDiffPixelRatio: 0.002,
+      animations: "disabled",
+      caret: "hide",
+      scale: "css",
+    },
   },
+
+  // Flat, because the platform suffix carries the only distinction that matters:
+  // a baseline belongs to exactly one renderer. Only the Linux set is committed;
+  // see `.gitignore` and `.claude/rules/tdd.md` §5.
+  snapshotPathTemplate: "e2e/__screenshots__/{arg}-{projectName}-{platform}{ext}",
 
   use: {
     baseURL,
@@ -73,11 +96,22 @@ export default defineConfig({
     {
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: desktopViewport, deviceScaleFactor: 1 },
+      testIgnore: visualSpecs,
     },
     {
       name: "small",
       use: { ...devices["Desktop Chrome"], viewport: smallViewport, deviceScaleFactor: 1 },
-      testIgnore: viewportIndependentSpecs,
+      testIgnore: [...visualSpecs, ...viewportIndependentSpecs],
+    },
+    {
+      name: "visual-desktop",
+      use: { ...devices["Desktop Chrome"], viewport: desktopViewport, deviceScaleFactor: 1 },
+      testMatch: visualSpecs,
+    },
+    {
+      name: "visual-small",
+      use: { ...devices["Desktop Chrome"], viewport: smallViewport, deviceScaleFactor: 1 },
+      testMatch: visualSpecs,
     },
   ],
 
