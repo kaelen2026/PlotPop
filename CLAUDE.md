@@ -6,12 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**这个仓库还没有任何代码。** 只有 `docs/` 下的三份规格文档、`docs/adr/` 的决策记录和 `.claude/rules/`。没有 `package.json`、没有 CI、没有源文件。
+**只有工程骨架，还没有业务功能。** 已完成 F-01.01：pnpm Workspace + Turborepo、`apps/web`、`apps/api`、`apps/worker` 三个最小应用、`packages/contracts`（Zod）、`tooling/typescript` 共享编译配置，以及三个服务各自的存活检查（Liveness）。
+
+尚不存在：Biome 与 `pnpm lint`、Husky / lint-staged / commitlint、CI、Docker Compose、PostgreSQL 与 Redis、就绪检查（Readiness）、`packages/` 下其余包、Playwright 与 `test:e2e`。
 
 这意味着：
 
-- 本文件中的命令均为**规划中**，尚不可运行。`docs/implementation-plan.md` §18 的首个批次（F-01）负责创建它们。
-- 不要假设任何构建、测试或 lint 命令存在。动手前先 `ls` 确认。
+- 动手前先 `ls` 确认，不要假设某个命令或某个包已经存在。下一节区分了"可运行"和"仍规划中"。
+- 提交信息还没有 commitlint 把关，需要手工遵守 Conventional Commits。
 - `docs/` 是行为契约的权威来源。实现与文档冲突时，先更新契约，不得在代码中静默绕过。
 
 ## 产品是什么
@@ -20,17 +22,22 @@ PlotPop 是面向北美、英文优先的 AI 漫剧创作 SaaS。用户提交英
 
 理解代码前先理解这个约束：**核心难题不是生成单个视频镜头，而是以可接受成本稳定生成角色一致、支持逐镜头局部修改的整集成片。** 架构中几乎每个非显然的设计都源自这一点。
 
-## 规划中的命令
+## 命令
 
-来自 `docs/implementation-plan.md` §2 与 §6.1。F-01 完成后这些才可用。
+已经可用：
 
 ```bash
-pnpm dev            # 启动 Web + API + Worker
+pnpm dev            # Turborepo 并行启动 Web + API + Worker
 pnpm build
 pnpm typecheck
-pnpm lint           # Biome（format + lint + 导入排序）
 pnpm test           # Vitest
-pnpm test:e2e       # Playwright
+```
+
+仍规划中（来自 `docs/implementation-plan.md` §2 与 §6.1，由后续批次建立）：
+
+```bash
+pnpm lint           # Biome（format + lint + 导入排序），F-01.03
+pnpm test:e2e       # Playwright，F-02 之后
 ```
 
 按 workspace 收窄（开发中优先用这个，别全仓库跑）：
@@ -65,6 +72,8 @@ apps/api      Hono + @hono/node-server，常驻 Node 容器（非 Edge Runtime�
 apps/worker   BullMQ consumers；AI Worker 与 Media Worker 分队列独立扩缩容
 packages/     auth api-client config contracts db domain observability providers testkit ui
 ```
+
+`packages/` 目前只存在 `contracts`，其余包在需要它们的切片里创建。
 
 服务边界是硬约束，不是建议：
 

@@ -4,9 +4,11 @@ PlotPop turns an English script and a set of reusable character sheets into a fi
 
 ## Status
 
-This repository holds specifications only. There is no application code yet: no `package.json`, no CI, no source files. Everything under `docs/` is the behavior contract the implementation will be held to.
+The repository holds an engineering skeleton and no product features yet. Task F-01.01 is done: a pnpm workspace driven by Turborepo, minimal `web`, `api`, and `worker` apps, a `contracts` package holding the Zod schemas, and a liveness probe on each of the three services.
 
-The commands and directory layout below are planned. Task F-01 creates them.
+Not there yet: Biome and `pnpm lint`, Husky and commitlint, CI, Docker Compose, PostgreSQL, Redis, readiness probes that report on dependencies, every `packages/` entry other than `contracts`, and Playwright.
+
+Everything under `docs/` is the behavior contract the implementation is held to.
 
 ## The problem worth solving
 
@@ -64,16 +66,19 @@ Two gates control everything else. F-00 validates model quality and unit economi
 
 ## Local development
 
-None of this runs yet. F-01 creates it.
+These work today:
 
 ```bash
+pnpm install
 pnpm dev            # web + api + worker
 pnpm build
 pnpm typecheck
-pnpm lint           # Biome
 pnpm test           # Vitest
-pnpm test:e2e       # Playwright
 ```
+
+Still to come: `pnpm lint` with Biome (F-01.03) and `pnpm test:e2e` with Playwright.
+
+Each service answers a liveness probe at `/health`: the API on port 3001, the worker on 3002, the web app on 3000.
 
 Narrow to one workspace while developing:
 
