@@ -263,7 +263,49 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
 - Label：字段、状态和紧凑操作。
 - Mono：任务 ID、时间码、技术数据和金额明细。
 
-约束：
+### 7.1 字体家族
+
+| Token | 字体 | 承载角色 |
+|---|---|---|
+| `font-display` | Outfit | Display |
+| `font-sans` | Inter | Heading、Body、Label |
+| `font-mono` | JetBrains Mono | Mono |
+
+品牌个性集中在 `font-display`，应用界面的标题与正文统一使用 `font-sans`。这是 §2.1 的直接结果：Pop Anime 的活泼表达不能干扰脚本、分镜与成本信息的阅读，所以 Episode Studio 内不出现 Display 字体。
+
+三个字体均须自托管，通过 `next/font` 引入并预加载，不得运行时请求第三方字体域。Inter 与 JetBrains Mono 必须启用 `font-variant-numeric: tabular-nums`，以满足 §7 对金额、积分、时间码和进度数字的等宽要求。
+
+### 7.2 字号尺度
+
+根字号为 16px。下表是唯一允许的字号档位，业务组件不得使用任意值字号。
+
+| Token | 字号 | 行高 | 字重 | 用途 |
+|---|---|---|---|---|
+| `text-display-lg` | 3.5rem | 1.05 | 800 | 官网首屏主标题 |
+| `text-display-md` | 2.75rem | 1.10 | 800 | 官网区域标题 |
+| `text-display-sm` | 2.25rem | 1.15 | 700 | 关键空状态标题 |
+| `text-heading-lg` | 1.875rem | 1.25 | 700 | 页面标题 |
+| `text-heading-md` | 1.5rem | 1.30 | 600 | 区域标题 |
+| `text-heading-sm` | 1.25rem | 1.35 | 600 | 卡片标题 |
+| `text-heading-xs` | 1.125rem | 1.40 | 600 | 密集区块标题、Inspector 分组 |
+| `text-body-lg` | 1.125rem | 1.60 | 400 | 引导性正文 |
+| `text-body-md` | 1rem | 1.60 | 400 | 默认正文 |
+| `text-body-sm` | 0.875rem | 1.55 | 400 | 辅助说明、表单帮助文字 |
+| `text-label-md` | 0.875rem | 1.40 | 500 | 字段标签、按钮 |
+| `text-label-sm` | 0.8125rem | 1.35 | 500 | Badge、紧凑操作 |
+| `text-label-xs` | 0.75rem | 1.30 | 600 | 元数据、表头 |
+| `text-mono-md` | 0.875rem | 1.50 | 400 | 金额明细、任务 ID |
+| `text-mono-sm` | 0.8125rem | 1.45 | 400 | 时间码、时间线刻度 |
+
+字重只使用 400、500、600、700、800 五档。800 仅供 Display 使用。
+
+`text-label-xs` 是可用于可见文案的最小档位。它已是 12px，配合 §15 的缩放要求不得再向下新增档位；密集模式按 §13 只能压缩间距，不能继续缩小字号。
+
+### 7.3 阅读行长
+
+正文容器最大宽度为 `68ch`。超过该宽度的长文本区域必须收窄，不得让正文铺满宽屏 Canvas —— 这条对官网与向导说明文字同样适用。
+
+### 7.4 约束
 
 - 字号、行高和字重只能使用预设尺度。
 - 不得在业务组件中使用任意值字号。
@@ -281,11 +323,49 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
 - 页面使用统一 Container 与横向 Padding。
 - Episode Studio 可以使用全宽工作区，但仍需遵循区域间距和最小宽度。
 
-响应式层级：
+### 8.1 间距档位
 
-- Small：进度查看、审阅与简单批准。
-- Medium：完整向导和简化 Studio。
-- Large：完整 Episode Studio 三栏布局。
+基础尺度为 4px，与 Tailwind 默认刻度对齐，因此不引入自定义间距尺度。已批准使用的档位是它的一个子集：
+
+| Token | 值 | 典型用途 |
+|---|---|---|
+| `1` | 4px | 图标与标签之间 |
+| `2` | 8px | 紧凑控件内部 |
+| `3` | 12px | 表单字段内部 |
+| `4` | 16px | 卡片内部默认间距 |
+| `6` | 24px | 卡片之间、区块内部 |
+| `8` | 32px | 区块之间 |
+| `12` | 48px | 页面区域之间 |
+| `16` | 64px | 官网区块之间 |
+| `24` | 96px | 官网首屏留白 |
+
+只使用上表档位。需要 `5`、`7`、`9` 这类中间值时，说明布局层级本身有问题，应先调整层级而不是取中间间距。
+
+### 8.2 断点与响应式层级
+
+| 层级 | 断点 | Tailwind 前缀 | 能力 |
+|---|---|---|---|
+| Small | < 768px | 默认 | 进度查看、审阅与简单批准 |
+| Medium | ≥ 768px | `md:` | 完整向导和简化 Studio |
+| Large | ≥ 1280px | `xl:` | 完整 Episode Studio 三栏布局 |
+
+层级只使用这两个断点。`sm:`、`lg:`、`2xl:` 不参与页面级布局决策，避免出现第四种事实上的布局形态。
+
+### 8.3 容器宽度
+
+| Token | 最大宽度 | 用途 |
+|---|---|---|
+| `container-prose` | 68ch | 正文与说明文字（§7.3） |
+| `container-form` | 40rem | 向导单步表单、账户设置 |
+| `container-app` | 80rem | Creator Home、列表与明细页 |
+| `container-marketing` | 90rem | 官网与案例页 |
+| — | 无限制 | Episode Studio 工作区 |
+
+页面横向 Padding：Small 为 `4`，Medium 及以上为 `6`。
+
+### 8.4 Episode Studio 最小宽度
+
+三栏布局在 Large 层级下的最小宽度：Scene Navigator 240px，Inspector 320px，Preview 占据剩余空间且不小于 480px。可用宽度不足以同时满足三者时，按 §13 降级为 Medium 的简化 Studio，而不是继续压缩栏宽。
 
 不得在 Small 屏幕上强行压缩完整时间线。
 
@@ -293,30 +373,66 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
 
 ### 9.1 圆角
 
-只使用预设的 Small、Medium、Large 和 Pill 四档。相同组件在不同页面不得改变圆角。
+只使用以下四档。相同组件在不同页面不得改变圆角。
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `radius-sm` | 6px | 输入控件、Badge、紧凑按钮 |
+| `radius-md` | 10px | 按钮、Card、弹层 |
+| `radius-lg` | 16px | 品牌卡片、空状态容器、媒体框 |
+| `radius-pill` | 9999px | Chip、Avatar、纯图标按钮 |
 
 ### 9.2 描边
 
+| Token | 值 | 用途 |
+|---|---|---|
+| `stroke-hairline` | 1px | 基础表面与分隔线，使用 `border` |
+| `stroke-ink` | 2px | 品牌卡片与主要 CTA 的漫画式描边，使用 `brand-ink` |
+| `stroke-ink-bold` | 3px | 官网首屏与关键空状态的品牌强调 |
+
+规则：
+
 - 基础表面使用语义 Border。
 - 品牌卡片和主要 CTA 可以使用漫画式强调描边。
-- Dark 模式降低强调描边对比度，避免边界噪声。
+- 使用品牌填充色时，`stroke-ink` 是**必需**而非装饰：Light 的 `brand-lime` 与 `brand-yellow` 边缘对比度不足 3:1，边界由描边提供（§6.7）。
+- Dark 模式的强调描边改用 `border` 而非 `brand-ink`，降低边界噪声（§5.4）。
 - 焦点 Ring 不得被描边或 Overflow 隐藏。
+
+焦点 Ring 固定为 2px `ring` 加 2px 偏移，两种主题一致。偏移使 Ring 与组件自身描边分离，避免在带 `stroke-ink` 的品牌按钮上与描边混成一条粗边。
 
 ### 9.3 阴影
 
-- Light 模式允许关键卡片使用紧凑硬阴影。
-- Dark 模式使用低透明阴影与表面抬升。
+| Token | Light | Dark | 用途 |
+|---|---|---|---|
+| `shadow-pop-sm` | `2px 2px 0 brand-ink` | 不使用 | 品牌卡片、主要 CTA |
+| `shadow-pop-md` | `4px 4px 0 brand-ink` | 不使用 | 官网品牌卡片、关键空状态 |
+| `shadow-raised` | `0 1px 2px rgb(26 23 37 / 0.08)` | `0 1px 2px rgb(0 0 0 / 0.32)` | 抬升表面 |
+| `shadow-overlay` | `0 8px 24px rgb(26 23 37 / 0.12)` | `0 8px 24px rgb(0 0 0 / 0.44)` | Dialog、Popover、Dropdown |
+
+规则：
+
+- `shadow-pop-*` 是无模糊的硬阴影，只在 Light 使用。Dark 下这两个 Token 解析为 `none`，层级改由 §6.1 的三级表面阶梯与 `border` 表达（§5.4）。
 - 弹层使用 shadcn/ui 自身的层级，不得手写 Z-Index。
-- 不得通过多个重阴影制造层级。
+- 不得通过多个重阴影制造层级。一个元素最多一个阴影 Token。
 
 ## 10. 动效
 
 动效 Token：
 
-- Instant：状态立即反馈。
-- Fast：Hover、Pressed、Tooltip。
-- Normal：折叠、切换、局部面板。
-- Slow：页面级或成果展示过渡。
+| Token | 时长 | 缓动 | 用途 |
+|---|---|---|---|
+| `duration-instant` | 75ms | `ease-out` | 状态立即反馈、Checkbox、Radio |
+| `duration-fast` | 150ms | `ease-out` | Hover、Pressed、Tooltip、主题颜色过渡 |
+| `duration-normal` | 250ms | `ease-emphasized` | 折叠、切换、局部面板 |
+| `duration-slow` | 400ms | `ease-emphasized` | 页面级或成果展示过渡 |
+
+缓动曲线：
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `ease-out` | `cubic-bezier(0, 0, 0.2, 1)` | 进入与状态反馈 |
+| `ease-emphasized` | `cubic-bezier(0.2, 0, 0, 1)` | 空间关系变化 |
+| `ease-exit` | `cubic-bezier(0.4, 0, 1, 1)` | 退出与消失 |
 
 规则：
 
@@ -324,7 +440,9 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
 - 禁止为持续生成进度使用干扰阅读的循环装饰动画。
 - 加载使用 Skeleton、Spinner 或 Progress。
 - 遵循 `prefers-reduced-motion`；减少或移除非必要位移和缩放。
-- 主题切换只允许短暂颜色过渡，不允许整页闪烁。
+- 主题切换只允许短暂颜色过渡，使用 `duration-fast`，且只过渡颜色属性，不允许整页闪烁。
+
+`prefers-reduced-motion: reduce` 下的具体降级：位移、缩放和旋转一律移除；透明度与颜色过渡保留但统一降到 `duration-instant`；Spinner 与 Progress 的循环动画保留，因为它们承载「仍在进行」这一必要信息，移除会让长时间生成看起来像卡死。
 
 ## 11. shadcn/ui 组件规范
 
