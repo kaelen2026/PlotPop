@@ -3,7 +3,7 @@ import {
   THEME_ATTRIBUTE,
   THEME_PREFERENCE_ATTRIBUTE,
   THEME_STORAGE_KEY,
-} from "./preference.js";
+} from "./preference";
 
 /**
  * The blocking script that resolves the theme before the first paint.

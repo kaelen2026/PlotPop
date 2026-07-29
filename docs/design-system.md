@@ -115,6 +115,10 @@ Component Token 数量必须受控，不得为单个页面创建一次性 Token�
 
 主题切换不得刷新页面，不得重置编辑状态。
 
+选择 `system` 时，跟随行为在页面打开期间持续有效：操作系统切换明暗时文档必须同步变化，而不是只在加载时读一次。
+
+**实现状态**：本地偏好已实现（`localStorage` 键 `plotpop.theme`）。**账户偏好与跨设备同步尚未实现**，需要用户与账户接口，属 F-03；在此之前登录用户与未登录用户行为一致。
+
 ### 5.2 首屏与 SSR
 
 - 在浏览器首次绘制前解析主题。
@@ -122,6 +126,10 @@ Component Token 数量必须受控，不得为单个页面创建一次性 Token�
 - 根节点通过稳定属性标识主题。
 - 禁止先渲染 Light 再切换 Dark。
 - Theme Switcher 在 Hydration 前不得显示错误的选中状态。
+
+根节点上有两个属性，不能混用：`data-theme` 是解析后的 `light | dark`，`data-theme-preference` 是用户选择的 `system | light | dark`。CSS 只看前者，Switcher 只看后者 —— 这样选了 `system` 而当前解析为 `dark` 时，Switcher 仍然显示 `system` 被选中。
+
+服务端无法知道操作系统偏好，因此**不允许猜**：Switcher 在服务端渲染 Skeleton 占位（§11.3），客户端读到 `data-theme-preference` 后再渲染真实控件。这既满足"不得显示错误的选中状态"，也避免 Hydration 不一致。`<html>` 上的 `suppressHydrationWarning` 是内联脚本改写根属性的必要结果。
 
 ### 5.3 Light 主题
 
@@ -451,6 +459,8 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。注意 `bra
 - 遵循 `prefers-reduced-motion`；减少或移除非必要位移和缩放。
 - 主题切换只允许短暂颜色过渡，使用 `duration-fast`，且只过渡颜色属性，不允许整页闪烁。
 
+主题过渡实现为 `theme.css` 中一条 `*, ::before, ::after` 的 `transition-property`，只列颜色类属性。必须是全局的：Token 在根节点改变，只给 `body` 加过渡会出现 Canvas 渐变而卡片瞬变。该列表里出现 `transform`、`box-shadow` 或任何尺寸属性即违反本节，`theme.test.ts` 会拒绝。
+
 `prefers-reduced-motion: reduce` 下的具体降级：位移、缩放和旋转一律移除；透明度与颜色过渡保留但统一降到 `duration-instant`；Spinner 与 Progress 的循环动画保留，因为它们承载「仍在进行」这一必要信息，移除会让长时间生成看起来像卡死。
 
 ## 11. shadcn/ui 组件规范
@@ -463,6 +473,8 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。注意 `bra
 2. 使用 shadcn/ui CLI 搜索注册表。
 3. 查看组件文档和示例。
 4. 判断能否通过组合现有组件完成。
+
+注册表源码放在 `packages/ui/src/components/ui/`，自有组件放在 `packages/ui/src/components/`。注册表组件默认不满足本文档的几处约束（字号档位、焦点 Ring 宽度、间距档位），改动**必须**写在该文件顶部的注释里并说明依据条款，否则后续 `shadcn diff` 无法区分「我们的决定」与「漂移」。
 
 ### 11.2 表单
 

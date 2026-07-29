@@ -4,7 +4,7 @@ import {
   resolveTheme,
   type ThemePreference,
   themePreferenceSchema,
-} from "./preference.js";
+} from "./preference";
 
 describe("theme preference", () => {
   it("accepts only the three documented preferences", () => {
