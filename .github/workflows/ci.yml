@@ -55,6 +55,84 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Behaviour and accessibility in a real browser. Separate from the quality
+  # gates, and from the visual job below, so each reports on its own: a failing
+  # screenshot must not hide a broken keyboard path.
+  #
+  # This job receives no secrets, and it never will. `.claude/rules/tdd.md` §6
+  # forbids CI from calling a real paid generation provider, and the structural
+  # guarantee is that there is nothing here to authenticate with — a spec that
+  # reaches for a real provider fails at configuration parsing, which is the
+  # cheapest possible place to find out.
+  browser:
+    name: Browser gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `--with-deps` installs the system libraries the browser needs; the browser
+      # build itself belongs to the pinned @playwright/test version.
+      - name: Install browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds and serves the web app itself, so there is no separate build step.
+      - name: End to end and accessibility
+        run: pnpm test:e2e
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-browser
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Visual regression runs through the same script a developer runs, which starts
+  # the pinned Playwright container. The renderer, and therefore the baseline, is
+  # identical in both places; see `.claude/rules/tdd.md` §5.
+  visual:
+    name: Visual regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      # The script reads the installed Playwright version to pick its image tag.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compare against the committed baselines
+        run: pnpm test:e2e:visual
+
+      # The diff images are how a baseline gets updated: read the report, decide
+      # whether the change was intended, then redraw with
+      # `pnpm test:e2e:visual --update-snapshots`.
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-visual
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   # Runs beside the quality gates rather than after them: an image that cannot
   # start is worth knowing about in the same minute as a failing test.
   images:
