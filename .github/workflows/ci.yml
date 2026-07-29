@@ -55,6 +55,43 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Separate from the quality gates because it needs a database. `.claude/rules/tdd.md`
+  # §6 keeps Postgres unmocked: the constraints and transactions these tests rely
+  # on only exist in a real server.
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: plotpop
+          POSTGRES_PASSWORD: plotpop
+          POSTGRES_DB: plotpop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U plotpop -d plotpop"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://plotpop:plotpop@localhost:5432/plotpop
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Integration tests
+        run: pnpm test:integration
+
   # Behaviour and accessibility in a real browser. Separate from the quality
   # gates, and from the visual job below, so each reports on its own: a failing
   # screenshot must not hide a broken keyboard path.

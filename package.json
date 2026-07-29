@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
+    "test:integration": "turbo run test:integration",
     "test:e2e": "tsc --project e2e/tsconfig.json && playwright test --project=desktop --project=small",
     "test:e2e:visual": "e2e/visual.sh",
     "docker:up": "docker compose --file docker/compose.yaml up --build --detach --wait",
