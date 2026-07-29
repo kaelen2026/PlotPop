@@ -217,11 +217,12 @@ Refactor 范围：
 - pnpm Workspace、Turborepo 和共享配置。
 - Next.js、Hono、Worker 最小应用。
 - Hono RPC `AppType` 与预编译类型客户端包。
-- Tailwind CSS 与 shadcn/ui Monorepo 配置。
 - Dockerfile 与 Docker Compose。
 - PostgreSQL、Redis 和 S3 兼容本地服务。
 - TypeScript、Lint、测试和 CI。
 - 健康检查和最小结构化日志。
+
+**不在范围内：**Tailwind CSS 配置、shadcn/ui Monorepo 配置和 `packages/ui` 由 F-02 独占，F-01 不创建也不修改这些文件。F-01 交付的 `apps/web` 是无样式的最小可构建 Next.js 应用；`packages/ui` 由 F-02 从零创建。理由见 §4.5 F-02「归属边界」。
 
 **依赖：**无。
 
@@ -247,9 +248,17 @@ Refactor 范围：
 - 键盘焦点和基础无障碍规则。
 - 英文本地化资源骨架。
 
+**归属边界：**以下文件由 F-02 独占创建与修改，F-01 及其他任务不得触碰：
+
+- `packages/ui/` 全部内容，包括 `components.json`、`components/`、`lib/`（含 `cn()`）、`styles/`。
+- Tailwind CSS 配置与主题变量。
+- `apps/web/components.json`。
+
+设置这条边界的原因：设计系统的唯一依据是 `docs/design-system.md`，由实现它的任务独占这些文件，可以避免 F-01 先写入一套默认 shadcn 主题变量、F-02 再全量改写。F-01 与 F-02 同属 W0 并行波次，二者共同创建同一批文件会产生无法自动解决的冲突。
+
 **依赖：**无。
 
-**可并行：**可与 F-00、F-01 同时开始。
+**可并行：**可与 F-00、F-01 同时开始。F-02 在 `packages/ui` 依赖 F-01 的 pnpm Workspace 与 TypeScript 基线配置合并后才能构建，但 Token 与主题语义定义不受此阻塞。
 
 **完成产物：**可点击原型与组件视觉验收记录；不连接真实业务 API。
 
@@ -578,10 +587,7 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - 初始化 pnpm Workspace 和 Turborepo。
 - 创建 `apps/web`、`apps/api`、`apps/worker`。
 - 创建共享包和 TypeScript Project References。
-- 初始化 Next.js App Router、Tailwind CSS 和 shadcn/ui Monorepo 配置。
-- 将 shadcn/ui 组件、`cn()`、主题变量和共享样式放入 `packages/ui`。
-- 所有 shadcn/ui CLI 操作使用项目包管理器执行，即 `pnpm dlx shadcn@latest`。
-- 添加组件前先检查现有组件与注册表；更新已修改组件前使用 `--dry-run` 和 `--diff` 检查差异。
+- 初始化 Next.js App Router，不含样式方案。
 - 启用 TypeScript 严格模式。
 - 配置 Biome Format、Lint、导入排序和共享规则。
 - 配置 Husky `pre-commit`，通过 lint-staged 只检查暂存文件。
@@ -859,6 +865,12 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 
 ### 14.1 基础体验
 
+本节的 Tailwind 配置、`packages/ui` 与 shadcn/ui 相关工作项归属 F-02，见 §4.5 F-02「归属边界」。
+
+- 初始化 Tailwind CSS 与 shadcn/ui Monorepo 配置。
+- 将 shadcn/ui 组件、`cn()`、主题变量和共享样式放入 `packages/ui`。
+- 所有 shadcn/ui CLI 操作使用项目包管理器执行，即 `pnpm dlx shadcn@latest`。
+- 添加组件前先检查现有组件与注册表；更新已修改组件前使用 `--dry-run` 和 `--diff` 检查差异。
 - 使用 Tailwind CSS 主题变量实现 Pop Anime 设计 Token、字体、色板、描边、投影和组件状态。
 - Primitive、Semantic 和 Component Token 必须与 `docs/design-system.md` 一致。
 - 业务组件禁止硬编码颜色、字号、间距、圆角、阴影、Z-Index 和动画时长。
