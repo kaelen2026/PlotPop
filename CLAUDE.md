@@ -6,14 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**只有工程骨架，还没有业务功能。** 已完成 F-01.01：pnpm Workspace + Turborepo、`apps/web`、`apps/api`、`apps/worker` 三个最小应用、`packages/contracts`（Zod）、`tooling/typescript` 共享编译配置，以及三个服务各自的存活检查（Liveness）。
+**只有工程骨架，还没有业务功能。** 已完成：
 
-尚不存在：Biome 与 `pnpm lint`、Husky / lint-staged / commitlint、CI、Docker Compose、PostgreSQL 与 Redis、就绪检查（Readiness）、`packages/` 下其余包、Playwright 与 `test:e2e`。
+- F-01.01：pnpm Workspace + Turborepo、`apps/web`、`apps/api`、`apps/worker` 三个最小应用、`packages/contracts`（Zod）、`tooling/typescript` 共享编译配置，以及三个服务各自的存活检查（Liveness）。
+- F-01.03：Biome、Vitest 严格化与覆盖率、Husky + lint-staged + commitlint、GitHub Actions CI。
+
+尚不存在：Docker Compose、PostgreSQL 与 Redis、就绪检查（Readiness）、`packages/` 下其余包、Playwright 与 `test:e2e`、Dockerfile 与镜像 CI。
 
 这意味着：
 
 - 动手前先 `ls` 确认，不要假设某个命令或某个包已经存在。下一节区分了"可运行"和"仍规划中"。
-- 提交信息还没有 commitlint 把关，需要手工遵守 Conventional Commits。
 - `docs/` 是行为契约的权威来源。实现与文档冲突时，先更新契约，不得在代码中静默绕过。
 
 ## 产品是什么
@@ -31,12 +33,14 @@ pnpm dev            # Turborepo 并行启动 Web + API + Worker
 pnpm build
 pnpm typecheck
 pnpm test           # Vitest
+pnpm test:coverage  # Vitest + v8 覆盖率（text-summary + lcov）
+pnpm lint           # Biome：format + lint + 导入排序，警告即失败
+pnpm lint:fix       # 同上，写回可自动修复的部分
 ```
 
 仍规划中（来自 `docs/implementation-plan.md` §2 与 §6.1，由后续批次建立）：
 
 ```bash
-pnpm lint           # Biome（format + lint + 导入排序），F-01.03
 pnpm test:e2e       # Playwright，F-02 之后
 ```
 
@@ -154,6 +158,12 @@ packages/     auth api-client config contracts db domain observability providers
 - 一个 commit 一个原子意图。测试与它验证的实现放同一个 commit。任一中间 commit 都不得留下无法构建的仓库状态。
 - 提交信息遵循 Conventional Commits，由 Husky `commit-msg` + commitlint 强制。说明用英文，与现有提交历史一致。
 - 遵循红—绿—重构：先写暴露目标行为的失败测试。
+
+质量门禁的三条行为（F-01.03）：
+
+- **`pre-commit` 只检查不改写。** 暂存文件格式或 Lint 不通过时提交被拒绝，钩子不会静默重写你已经审过的内容。要拿修复结果自己跑 `pnpm lint:fix`。
+- **`.only` 和 `.skip` 会让提交失败。** 前者同时被 Vitest（`allowOnly: false`）和 Biome `noFocusedTests` 拦，后者被 `noSkippedTests` 拦。确有必要跳过时写 `// biome-ignore lint/suspicious/noSkippedTests: <原因>`，把理由留在代码里。
+- **CI 跑全仓库，不只跑暂存文件。** 本地钩子可以 `--no-verify` 绕过，CI 不能；PR 上还会用 commitlint 校验该 PR 的全部提交信息。
 
 ## 执行顺序
 

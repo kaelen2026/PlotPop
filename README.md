@@ -4,9 +4,9 @@ PlotPop turns an English script and a set of reusable character sheets into a fi
 
 ## Status
 
-The repository holds an engineering skeleton and no product features yet. Task F-01.01 is done: a pnpm workspace driven by Turborepo, minimal `web`, `api`, and `worker` apps, a `contracts` package holding the Zod schemas, and a liveness probe on each of the three services.
+The repository holds an engineering skeleton and no product features yet. Task F-01.01 is done: a pnpm workspace driven by Turborepo, minimal `web`, `api`, and `worker` apps, a `contracts` package holding the Zod schemas, and a liveness probe on each of the three services. Task F-01.03 is done: Biome, Vitest with coverage, Husky hooks with lint-staged and commitlint, and a GitHub Actions pipeline running the same gates over the whole repository.
 
-Not there yet: Biome and `pnpm lint`, Husky and commitlint, CI, Docker Compose, PostgreSQL, Redis, readiness probes that report on dependencies, every `packages/` entry other than `contracts`, and Playwright.
+Not there yet: Docker Compose, PostgreSQL, Redis, readiness probes that report on dependencies, every `packages/` entry other than `contracts`, Playwright, and container image builds.
 
 Everything under `docs/` is the behavior contract the implementation is held to.
 
@@ -74,9 +74,14 @@ pnpm dev            # web + api + worker
 pnpm build
 pnpm typecheck
 pnpm test           # Vitest
+pnpm test:coverage  # Vitest with v8 coverage
+pnpm lint           # Biome format, lint, and import sorting; warnings fail
+pnpm lint:fix       # the same, writing back what can be fixed automatically
 ```
 
-Still to come: `pnpm lint` with Biome (F-01.03) and `pnpm test:e2e` with Playwright.
+Still to come: `pnpm test:e2e` with Playwright.
+
+`pre-commit` checks staged files without rewriting them, so a formatting failure rejects the commit instead of silently editing what you staged. `commit-msg` runs commitlint. A focused or skipped test fails both the suite and the linter; keeping a skip requires a `biome-ignore` comment that states why. CI reruns every gate over the whole repository, because the local hooks can be skipped with `--no-verify`.
 
 Each service answers a liveness probe at `/health`: the API on port 3001, the worker on 3002, the web app on 3000.
 
