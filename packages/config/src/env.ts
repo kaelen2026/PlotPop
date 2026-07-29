@@ -24,6 +24,57 @@ const processFields = {
 };
 
 /**
+ * Hosts that resolve to the machine running the browser. ADR-007 keeps these out
+ * of a production allowlist: anything a visitor happens to be running locally
+ * would otherwise be trusted to drive the authenticated api.
+ */
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1"]);
+
+/** A comma-separated allowlist, normalised to bare origins. */
+const originListSchema = z.string().transform((value, ctx) => {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+
+  if (entries.length === 0) {
+    ctx.addIssue({ code: "custom", message: "must list at least one origin" });
+
+    return z.NEVER;
+  }
+
+  const origins: string[] = [];
+
+  for (const entry of entries) {
+    const parsed = URL.parse(entry);
+
+    if (parsed === null || !/^https?:$/.test(parsed.protocol)) {
+      ctx.addIssue({ code: "custom", message: "must be a comma-separated list of http origins" });
+
+      return z.NEVER;
+    }
+
+    // Only the origin is kept: a path or query in an allowlist entry reads as if
+    // it narrowed the trust, and it does not.
+    origins.push(parsed.origin);
+  }
+
+  return origins;
+});
+
+/**
+ * Better Auth, held by the api alone (ADR-007). The worker acts under an internal
+ * service identity and never sees a user session, so it never needs to sign one.
+ */
+const authFields = {
+  // Length rather than composition: this is machine generated, and a short secret
+  // is the only realistic way to make session forgery worth attempting.
+  BETTER_AUTH_SECRET: z.string().min(32),
+  AUTH_BASE_URL: httpUrlSchema,
+  AUTH_TRUSTED_ORIGINS: originListSchema,
+};
+
+/**
  * Backing services the api and worker both hold connections to. The web tier
  * deliberately has no counterpart: it reaches all of this through the api
  * (ADR-001).
@@ -61,8 +112,30 @@ function toBackendConfig(env: z.infer<typeof backingServiceSchema>, port: number
 }
 
 const apiEnvSchema = backingServiceSchema
-  .extend({ API_PORT: portSchema.default(3001) })
-  .transform((env) => toBackendConfig(env, env.API_PORT));
+  .extend({ API_PORT: portSchema.default(3001), ...authFields })
+  .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== "production") return;
+
+    const loopback = env.AUTH_TRUSTED_ORIGINS.filter((origin) =>
+      LOOPBACK_HOSTNAMES.has(new URL(origin).hostname),
+    );
+
+    if (loopback.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["AUTH_TRUSTED_ORIGINS"],
+        message: "must not trust a loopback origin in production",
+      });
+    }
+  })
+  .transform((env) => ({
+    ...toBackendConfig(env, env.API_PORT),
+    auth: {
+      secret: env.BETTER_AUTH_SECRET,
+      baseUrl: env.AUTH_BASE_URL,
+      trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
+    },
+  }));
 
 const workerEnvSchema = backingServiceSchema
   .extend({ WORKER_PORT: portSchema.default(3002) })

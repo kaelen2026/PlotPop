@@ -1,11 +1,22 @@
+import type { AuthService } from "@plotpop/auth";
 import type { ReadinessResponse } from "@plotpop/contracts";
 import { healthResponseSchema, readinessResponseSchema } from "@plotpop/contracts";
 import { testClient } from "hono/testing";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 
+/**
+ * Liveness and readiness must answer without a database, so the auth service is a
+ * stub here. Its real behaviour is covered by `auth.integration.test.ts` against
+ * a real Postgres.
+ */
+const stubAuth: AuthService = {
+  handler: () => Promise.resolve(new Response(null, { status: 501 })),
+  getSession: () => Promise.resolve(null),
+};
+
 function appWith(readiness: ReadinessResponse) {
-  return createApp({ readiness: async () => readiness });
+  return createApp({ readiness: async () => readiness, auth: stubAuth });
 }
 
 const ready: ReadinessResponse = {

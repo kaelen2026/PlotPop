@@ -16,8 +16,10 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc --build",
     "start": "node dist/index.js",
+    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "typecheck": "tsc --build && tsc --project tsconfig.test.json",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
@@ -29,7 +31,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
+    "@plotpop/auth": "workspace:*",
     "@plotpop/config": "workspace:*",
+    "@plotpop/db": "workspace:*",
     "@plotpop/contracts": "workspace:*",
     "@plotpop/observability": "workspace:*",
     "hono": "^4.12.32"

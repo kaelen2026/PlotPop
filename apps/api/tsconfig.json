@@ -6,7 +6,7 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"],
+  "exclude": ["src/**/*.test.ts", "src/testing/**"],
   "references": [
     {
       "path": "../../packages/contracts"
@@ -16,6 +16,12 @@
     },
     {
       "path": "../../packages/observability"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../packages/auth"
     }
   ]
 }

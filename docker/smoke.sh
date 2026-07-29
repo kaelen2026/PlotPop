@@ -58,6 +58,9 @@ docker run --detach --name "$container" --init \
   --env "STORAGE_BUCKET=smoke" \
   --env "STORAGE_ACCESS_KEY_ID=smoke" \
   --env "STORAGE_SECRET_ACCESS_KEY=smoke" \
+  --env "BETTER_AUTH_SECRET=smoke-test-session-signing-secret-value" \
+  --env "AUTH_BASE_URL=http://localhost:3000" \
+  --env "AUTH_TRUSTED_ORIGINS=http://localhost:3000" \
   "$image" >/dev/null
 
 published="$(docker port "$container" "${port}/tcp" | head -n 1)"
