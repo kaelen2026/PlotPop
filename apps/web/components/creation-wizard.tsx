@@ -1,6 +1,12 @@
 "use client";
 
-import { episodeDraftInputSchema } from "@plotpop/contracts";
+import {
+  type CreditEstimate,
+  coversEstimate,
+  episodeDraftInputSchema,
+  requiresReconfirmation,
+} from "@plotpop/contracts";
+import { CreditCost } from "@plotpop/ui/components/credit-cost";
 import { Alert, AlertDescription, AlertTitle } from "@plotpop/ui/components/ui/alert";
 import { Button } from "@plotpop/ui/components/ui/button";
 import {
@@ -27,8 +33,13 @@ import { messages } from "@/locales/en";
  * rather than of one screen. Their forms arrive in later slices.
  *
  * The draft lives above the step, so stepping back does not discard it.
+ *
+ * The animate step is the one that spends money, so it does not simply continue:
+ * §10 requires the estimate to be shown and confirmed first, and the button is
+ * disabled outright when the balance cannot cover the upper bound — starting a
+ * generation that cannot finish is worse than not starting it.
  */
-export function CreationWizard() {
+export function CreationWizard({ estimate }: { estimate: CreditEstimate }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState({ title: "", script: "" });
   const [errors, setErrors] = useState<ScriptStepErrors>({});
@@ -37,6 +48,17 @@ export function CreationWizard() {
   const isFirstStep = stepIndex === 0;
   const isLastStep = stepIndex === CREATION_STEPS.length - 1;
   const summaryEntries = Object.values(errors);
+
+  const affordable = coversEstimate(estimate);
+  const quoteChanged = requiresReconfirmation(estimate);
+  const advanceLabel =
+    step === "animate"
+      ? affordable
+        ? quoteChanged
+          ? messages.wizard.animate.reconfirm
+          : messages.wizard.animate.confirm
+        : messages.wizard.animate.blocked
+      : messages.wizard.continue;
 
   const titleErrorId = useId();
   const scriptErrorId = useId();
@@ -95,6 +117,10 @@ export function CreationWizard() {
             {messages.wizard[step].description}
           </p>
 
+          {step === "animate" ? (
+            <CreditCost estimate={estimate} labels={messages.creditCost} />
+          ) : null}
+
           {step === "script" ? (
             <FieldGroup>
               <Field data-invalid={errors.title !== undefined}>
@@ -152,7 +178,11 @@ export function CreationWizard() {
               {messages.wizard.back}
             </Button>
           )}
-          {isLastStep ? null : <Button type="submit">{messages.wizard.continue}</Button>}
+          {isLastStep ? null : (
+            <Button type="submit" disabled={step === "animate" && !affordable}>
+              {advanceLabel}
+            </Button>
+          )}
         </div>
       </form>
     </div>
