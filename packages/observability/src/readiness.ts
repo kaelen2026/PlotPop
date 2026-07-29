@@ -1,4 +1,3 @@
-import { connect } from "node:net";
 import type { DependencyReport, ReadinessResponse, ServiceName } from "@plotpop/contracts";
 import type { Logger } from "./logger.js";
 
@@ -67,52 +66,5 @@ export function createReadinessReporter(options: ReadinessOptions): ReadinessRep
       service,
       dependencies: reports,
     };
-  };
-}
-
-export type TcpProbe = DependencyProbe & {
-  readonly address: { readonly host: string; readonly port: number };
-};
-
-const defaultPorts: Readonly<Record<string, number>> = {
-  "postgres:": 5432,
-  "postgresql:": 5432,
-  "redis:": 6379,
-  "rediss:": 6380,
-  "http:": 80,
-  "https:": 443,
-};
-
-/**
- * Reachability only: it proves a listener accepted a connection, not that a
- * database will authenticate or a bucket exists. Driver-level probes replace it
- * when `packages/db` and the storage client land; until then this is the honest
- * limit of what the skeleton can assert.
- */
-export function tcpProbe(name: string, target: string): TcpProbe {
-  const url = new URL(target);
-  const fallbackPort = defaultPorts[url.protocol];
-
-  if (url.port === "" && fallbackPort === undefined) {
-    throw new Error(`Cannot probe ${name}: no default port for scheme ${url.protocol}`);
-  }
-
-  const address = {
-    host: url.hostname,
-    port: url.port === "" ? (fallbackPort as number) : Number(url.port),
-  };
-
-  return {
-    name,
-    address,
-    probe: (signal) =>
-      new Promise<void>((resolve, reject) => {
-        const socket = connect({ ...address, signal });
-        socket.once("connect", () => {
-          socket.destroy();
-          resolve();
-        });
-        socket.once("error", reject);
-      }),
   };
 }
