@@ -1,6 +1,12 @@
 import { serve } from "@hono/node-server";
 import { parseApiEnv } from "@plotpop/config";
-import { createLogger, createReadinessReporter, tcpProbe } from "@plotpop/observability";
+import {
+  createLogger,
+  createReadinessReporter,
+  httpProbe,
+  postgresProbe,
+  redisProbe,
+} from "@plotpop/observability";
 import { createApp } from "./app.js";
 
 // Parsed before the server binds: a container missing a credential should fail
@@ -12,9 +18,9 @@ const readiness = createReadinessReporter({
   service: "api",
   logger,
   dependencies: [
-    tcpProbe("database", config.database.url),
-    tcpProbe("redis", config.redis.url),
-    tcpProbe("storage", config.storage.endpoint),
+    postgresProbe("database", config.database.url),
+    redisProbe("redis", config.redis.url),
+    httpProbe("storage", config.storage.endpoint),
   ],
 });
 

@@ -1,5 +1,11 @@
 import { parseWorkerEnv } from "@plotpop/config";
-import { createLogger, createReadinessReporter, tcpProbe } from "@plotpop/observability";
+import {
+  createLogger,
+  createReadinessReporter,
+  httpProbe,
+  postgresProbe,
+  redisProbe,
+} from "@plotpop/observability";
 import { createHealthServer } from "./health-server.js";
 
 // Parsed before anything binds or connects: a worker missing its queue url
@@ -12,9 +18,9 @@ const readiness = createReadinessReporter({
   service: "worker",
   logger,
   dependencies: [
-    tcpProbe("database", config.database.url),
-    tcpProbe("redis", config.redis.url),
-    tcpProbe("storage", config.storage.endpoint),
+    postgresProbe("database", config.database.url),
+    redisProbe("redis", config.redis.url),
+    httpProbe("storage", config.storage.endpoint),
   ],
 });
 
