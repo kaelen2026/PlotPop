@@ -15,13 +15,13 @@ describe("harness configuration", () => {
   it("runs offline with no credentials at all, so a dry run cannot cost anything", () => {
     const config = parseHarnessConfig({}, noon);
 
-    expect(config.provider).toBe("fake");
+    expect(config.provider).toBe("offline");
     expect(config.apiToken).toBeNull();
     expect(config.unitPriceUsd).toBeNull();
   });
 
   it("derives a run id from the date when none is given", () => {
-    expect(parseHarnessConfig({}, noon).runId).toBe("2026-07-29-fake-standard");
+    expect(parseHarnessConfig({}, noon).runId).toBe("2026-07-29-offline-standard");
   });
 
   it("keeps a run id the operator chose, so a resume lands in the same directory", () => {
