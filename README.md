@@ -4,9 +4,16 @@ PlotPop turns an English script and a set of reusable character sheets into a fi
 
 ## Status
 
-The repository holds an engineering skeleton and no product features yet. Task F-01.01 is done: a pnpm workspace driven by Turborepo, minimal `web`, `api`, and `worker` apps, a `contracts` package holding the Zod schemas, and a liveness probe on each of the three services. Task F-01.03 is done: Biome, Vitest with coverage, Husky hooks with lint-staged and commitlint, and a GitHub Actions pipeline running the same gates over the whole repository.
+The repository holds an engineering skeleton and no product features yet. Task F-01 is done:
 
-Not there yet: Docker Compose, PostgreSQL, Redis, readiness probes that report on dependencies, every `packages/` entry other than `contracts`, Playwright, and container image builds.
+- **F-01.01** — a pnpm workspace driven by Turborepo, minimal `web`, `api`, and `worker` apps, a `contracts` package holding the Zod schemas, and a liveness probe on each of the three services.
+- **F-01.02** — `packages/config` parses each service's environment through a Zod schema at startup, so a missing credential fails the process instead of the first request that needs it.
+- **F-01.03** — Biome, Vitest with coverage, Husky hooks with lint-staged and commitlint, and a GitHub Actions pipeline running the same gates over the whole repository.
+- **F-01.04** — multi-stage images for the api and worker, a Docker Compose stack covering PostgreSQL, Redis and S3-compatible storage, readiness probes that report on those dependencies, and a CI job that starts each image and health-checks it.
+
+Also in place: `packages/observability` (structured logging and readiness) and `packages/api-client` (the precompiled Hono RPC client).
+
+Not there yet: the domain model and database, Better Auth, every remaining `packages/` entry, Playwright, and any product feature at all.
 
 Everything under `docs/` is the behavior contract the implementation is held to.
 
@@ -66,11 +73,25 @@ Two gates control everything else. F-00 validates model quality and unit economi
 
 ## Local development
 
-These work today:
+Start the dependencies first, then the services:
 
 ```bash
 pnpm install
-pnpm dev            # web + api + worker
+cp .env.example .env
+pnpm docker:up      # PostgreSQL, Redis, storage, api and worker, waits until healthy
+pnpm dev            # web + api + worker from source
+```
+
+`pnpm docker:up` also runs the api and worker as containers. To develop against the dependencies alone, stop those two: `docker compose -f docker/compose.yaml stop api worker`. Published ports bind to loopback only and can be moved when a machine already has a PostgreSQL of its own:
+
+```bash
+POSTGRES_HOST_PORT=5433 pnpm docker:up
+pnpm docker:down    # stops everything, keeps the volumes
+```
+
+The rest:
+
+```bash
 pnpm build
 pnpm typecheck
 pnpm test           # Vitest
@@ -83,8 +104,6 @@ Still to come: `pnpm test:e2e` with Playwright.
 
 `pre-commit` checks staged files without rewriting them, so a formatting failure rejects the commit instead of silently editing what you staged. `commit-msg` runs commitlint. A focused or skipped test fails both the suite and the linter; keeping a skip requires a `biome-ignore` comment that states why. CI reruns every gate over the whole repository, because the local hooks can be skipped with `--no-verify`.
 
-Each service answers a liveness probe at `/health`: the API on port 3001, the worker on 3002, the web app on 3000.
-
 Narrow to one workspace while developing:
 
 ```bash
@@ -92,7 +111,24 @@ pnpm --filter <workspace> test
 pnpm --filter <workspace> typecheck
 ```
 
-PostgreSQL, Redis, and S3-compatible storage run locally through Docker Compose, planned at `docker/compose.yaml`.
+### Probes
+
+Every service answers `/health`, and the api and worker also answer `/ready`: the api on 3001, the worker on 3002, the web app on 3000.
+
+The two say different things on purpose. `/health` reports whether the process is alive and never consults a dependency, because restarting a container cannot make PostgreSQL reachable and an orchestrator acting on that signal would only extend the outage. `/ready` reports whether traffic should arrive, probing each dependency by speaking its protocol and answering 503 when one is unreachable. Which dependency failed and why goes to the logs, not the response.
+
+```bash
+curl localhost:3001/ready
+```
+
+### Images
+
+```bash
+docker build -f docker/api.Dockerfile -t plotpop-api .
+docker/smoke.sh plotpop-api:latest api 3001
+```
+
+`docker/smoke.sh` is what CI runs against a built image: it starts the container with its dependencies pointed at a closed port and asserts the image runs unprivileged, ships no build tooling, reaches its own healthcheck, answers liveness, and refuses traffic through `/ready`.
 
 ## Working agreements
 
