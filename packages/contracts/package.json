@@ -14,11 +14,15 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --build"
+    "typecheck": "tsc --build && tsc --project tsconfig.test.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "typescript": "^7.0.2"
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "zod": "^4.4.3"
