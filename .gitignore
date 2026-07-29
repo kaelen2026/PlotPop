@@ -9,6 +9,12 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Visual baselines exist for one renderer, the pinned Playwright container, so a
+# snapshot taken on a developer machine is local iteration and never a second
+# authority. See e2e/visual.sh and .claude/rules/tdd.md §5.
+e2e/__screenshots__/*-darwin.png
+e2e/__screenshots__/*-win32.png
+
 *.tsbuildinfo
 next-env.d.ts
 

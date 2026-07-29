@@ -129,6 +129,15 @@ pnpm test:e2e
 
 Accessibility runs in the same command: axe audits the page against the WCAG 2.2 AA rule sets in both themes, and explicit specs cover the keyboard path, the focus ring, and the rule from `docs/design-system.md` §6.8 that a state never rests on colour alone. axe's "best practice" rules stay off — a gate that has to be argued with is not a gate.
 
+Visual regression is a separate command, because a screenshot only means something against a baseline drawn by the same renderer:
+
+```bash
+pnpm test:e2e:visual                     # compare against the committed baselines
+pnpm test:e2e:visual --update-snapshots  # redraw them, then look at every PNG
+```
+
+`e2e/visual.sh` runs those two projects inside `mcr.microsoft.com/playwright:v<version>-noble`, with the tag derived from the installed `@playwright/test` so the two can never disagree. CI runs the same script, so a pull request's comparison is reproducible on your machine. `e2e/__screenshots__/` therefore holds Linux baselines only; snapshots from a developer platform are ignored by git rather than allowed to become a second authority. `.claude/rules/tdd.md` §5 has the rest of the policy.
+
 The specs live in `e2e/` rather than inside `apps/web`, because `apps/web/tsconfig.json` compiles every `.ts` under the app and Vitest's default include claims `*.spec.ts` — a Playwright file in a workspace would be built by `next build` and executed by `pnpm test`. Everything runs at two viewports, 1440x900 for the Large tier and 390x844 for Small, the only two breakpoints `docs/design-system.md` §8.2 allows; specs whose subject is not the layout are listed in `playwright.config.ts` and run once.
 
 ### Probes

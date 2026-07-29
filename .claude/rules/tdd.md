@@ -74,10 +74,25 @@
 | E2E | 注册 → 购买积分 → 创建系列 → 生成单集 → 局部重做 → 导出 | Playwright |
 | 故障注入 | Redis 暂时不可用、供应商超时、数据库提交失败、上传成功但数据库回写失败 | Vitest / Playwright |
 | 无障碍 | 键盘流程、焦点可见性、标签、对比度 | Playwright |
-| 视觉回归 | 核心组件 Light 与 Dark | 待 F-02 确定 |
+| 视觉回归 | 核心组件与关键页面的 Light 与 Dark，桌面与小屏两档 | Playwright `toHaveScreenshot` |
 
 API 路由测试用 Hono `testClient()`，它同时验证运行行为和 RPC 类型推导 —— 类型推导错误在这
 一层暴露，比在 Web 里发现便宜得多。
+
+视觉回归用 Playwright 自带的 `toHaveScreenshot`，不引第三方快照服务：E2E 与无障碍已经在
+Playwright 上，同一个 runner、同一次构建就能出快照，不值得再养一套上传比对的基础设施。
+
+它唯一容易失控的地方是跨平台渲染差异，所以这里只有一条规则：**基线只有一份，属于钉住的
+`mcr.microsoft.com/playwright:v<版本>-noble` 容器。** 镜像 Tag 由已安装的 `@playwright/test`
+版本推导（`e2e/visual.sh`），不会出现「依赖升了、Tag 没升」这种比错渲染器的情况。本地和 CI
+都通过 `pnpm test:e2e:visual` 在同一个镜像里跑，因此 PR 里的比较结果本地可以逐字复现。开发机
+上顺手跑出的 `-darwin` / `-win32` 快照被 `.gitignore` 挡住，不会变成第二份权威；在非 Linux 上
+直接跑视觉项目会报错并指向正确命令。容差 `maxDiffPixelRatio: 0.002` 只吸收字体栅格化的抖动，
+颜色、圆角、间距的改动都是上千像素级别，挡不住。
+
+更新基线：`pnpm test:e2e:visual --update-snapshots`，然后**逐张看过再提交**。这一层是验证而不
+是驱动（§4），把一张错的渲染钉成基线比没有基线更糟。`pnpm test:e2e` 不含视觉回归，任何机器上
+都能跑完行为与无障碍。
 
 ## 6. 本项目的测试硬约束
 
