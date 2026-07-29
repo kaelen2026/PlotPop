@@ -18,11 +18,13 @@ export default function LandingPage() {
         <h1 className="font-display text-heading-md">PlotPop</h1>
         <ThemeSwitcher labels={messages.theme} />
       </header>
-      <div className="flex flex-1 items-center justify-center p-4 md:p-6">
+      {/* A `main` landmark: without one this page's content sits outside every
+          landmark, which the accessibility gate rejects. */}
+      <main className="flex flex-1 items-center justify-center p-4 md:p-6">
         <Button asChild>
           <Link href={routes.creatorHome}>{messages.landing.openCreatorHome}</Link>
         </Button>
-      </div>
+      </main>
     </div>
   );
 }

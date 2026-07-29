@@ -337,6 +337,18 @@ describe("theme tokens", () => {
     }
   });
 
+  it("carries the Episode Studio column widths", () => {
+    // §8.4 is a rule about three specific widths. Leaving them to a page would
+    // put an arbitrary value in business code (§16) and let the next page pick
+    // different ones.
+    const studioGrid = blockBody("@utility studio-grid");
+
+    expect(studioGrid).toContain("240px minmax(480px, 1fr) 320px");
+    // Below Large the columns stack rather than being squeezed (§13).
+    expect(studioGrid).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(studioGrid).toContain("@variant xl");
+  });
+
   it("transitions only colours when the theme changes", () => {
     // §10: a theme change may cross fade colours and must not move anything, so
     // no transform, shadow or size property may join this list.

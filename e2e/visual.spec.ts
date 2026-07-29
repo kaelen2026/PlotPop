@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { seedThemePreference, THEME_ATTRIBUTE, themeSwitcher } from "./support/theme";
 
 /**
@@ -22,15 +22,42 @@ test.beforeAll(() => {
   }
 });
 
-for (const theme of ["light", "dark"] as const) {
-  test(`the web shell in the ${theme} theme`, async ({ page }) => {
-    await seedThemePreference(page, theme);
-    await page.goto("/");
-    // Screenshot after hydration, not before: the switcher's skeleton is a real
-    // state but not the one worth freezing.
-    await expect(themeSwitcher(page)).toBeVisible();
-    await expect(page.locator("html")).toHaveAttribute(THEME_ATTRIBUTE, theme);
+/**
+ * One baseline per distinct layout rather than per route: the shell covers the
+ * header, the tokens and the switcher, and the Studio is the only page with a
+ * different structure — §8.4's three columns and the neutral media surface of §13.
+ *
+ * Each entry says how to know its page has settled, because the Studio carries no
+ * theme switcher to wait on (§8.3 gives it its own top bar).
+ */
+const PAGES = [
+  {
+    name: "web-shell",
+    path: "/",
+    settled: async (page: Page) => {
+      // After hydration, not before: the switcher's skeleton is a real state but
+      // not the one worth freezing.
+      await expect(themeSwitcher(page)).toBeVisible();
+    },
+  },
+  {
+    name: "episode-studio",
+    path: "/episodes/prototype-3",
+    settled: async (page: Page) => {
+      await expect(page.getByRole("navigation", { name: "Scenes and shots" })).toBeVisible();
+    },
+  },
+] as const;
 
-    await expect(page).toHaveScreenshot(`web-shell-${theme}.png`, { fullPage: true });
-  });
+for (const { name, path, settled } of PAGES) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`${name} in the ${theme} theme`, async ({ page }) => {
+      await seedThemePreference(page, theme);
+      await page.goto(path);
+      await settled(page);
+      await expect(page.locator("html")).toHaveAttribute(THEME_ATTRIBUTE, theme);
+
+      await expect(page).toHaveScreenshot(`${name}-${theme}.png`, { fullPage: true });
+    });
+  }
 }

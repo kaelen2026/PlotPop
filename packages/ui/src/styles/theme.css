@@ -344,6 +344,24 @@
   border-bottom-color: var(--border);
 }
 
+/*
+ * §8.4: the Episode Studio's three columns. Scene Navigator 240px, Inspector
+ * 320px, Preview takes what is left and never drops below 480px. Below Large the
+ * columns stack into the simplified Studio (§13) rather than being squeezed.
+ *
+ * A component utility rather than a page class, because §16 rules out arbitrary
+ * values in business code and these three widths are a rule, not a layout choice
+ * a page gets to make.
+ */
+@utility studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+
+  @variant xl {
+    grid-template-columns: 240px minmax(480px, 1fr) 320px;
+  }
+}
+
 @utility stroke-ink {
   border-width: 2px;
   border-color: var(--stroke-ink-color);

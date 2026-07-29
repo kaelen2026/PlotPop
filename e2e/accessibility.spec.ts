@@ -16,6 +16,18 @@ import { seedThemePreference, THEME_ATTRIBUTE, themeOption, themeSwitcher } from
  */
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
+/**
+ * Every page that exists, audited in both themes at both tiers. §18 says "key
+ * pages", and while the product is this small that is all of them — a list that
+ * has to be remembered is a list that goes stale.
+ */
+const PAGES = [
+  { name: "the landing page", path: "/" },
+  { name: "Creator Home", path: "/home" },
+  { name: "the creation wizard", path: "/episodes/new" },
+  { name: "the Episode Studio", path: "/episodes/prototype-3" },
+] as const;
+
 async function auditWcag(page: Page): Promise<void> {
   const result = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
 
@@ -30,18 +42,22 @@ async function auditWcag(page: Page): Promise<void> {
   expect(violations).toEqual([]);
 }
 
-test.describe("the web shell passes an automated WCAG audit", () => {
-  for (const theme of ["light", "dark"] as const) {
-    test(`in the ${theme} theme`, async ({ page }) => {
-      // §6.6 verifies the token pairs; this verifies what the browser actually
-      // composited, including any contrast the tokens cannot predict.
-      await seedThemePreference(page, theme);
-      await page.goto("/");
-      await expect(themeSwitcher(page)).toBeVisible();
-      await expect(page.locator("html")).toHaveAttribute(THEME_ATTRIBUTE, theme);
+test.describe("every page passes an automated WCAG audit", () => {
+  for (const { name, path } of PAGES) {
+    for (const theme of ["light", "dark"] as const) {
+      test(`${name} in the ${theme} theme`, async ({ page }) => {
+        // §6.6 verifies the token pairs; this verifies what the browser actually
+        // composited, including any contrast the tokens cannot predict.
+        await seedThemePreference(page, theme);
+        await page.goto(path);
+        // Waits for the main landmark rather than the theme switcher: the Studio
+        // has its own top bar (§8.3) and does not carry the shell.
+        await expect(page.locator("main")).toBeVisible();
+        await expect(page.locator("html")).toHaveAttribute(THEME_ATTRIBUTE, theme);
 
-      await auditWcag(page);
-    });
+        await auditWcag(page);
+      });
+    }
   }
 });
 

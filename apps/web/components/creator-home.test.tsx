@@ -4,7 +4,7 @@ import { GENERATION_STATUSES } from "@plotpop/contracts";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CreatorHome } from "@/components/creator-home";
-import { routes } from "@/lib/routes";
+import { episodeStudioRoute, routes } from "@/lib/routes";
 import { messages } from "@/locales/en";
 import { stubBrowserEnvironment } from "@/test/browser-environment";
 
@@ -72,6 +72,18 @@ describe("creator home", () => {
 
       for (const episode of episodes) {
         expect(screen.getByText(episode.title)).toBeInTheDocument();
+      }
+    });
+
+    it("opens an episode in its Studio", () => {
+      const episodes = episodesForEveryStatus();
+      render(<CreatorHome episodes={episodes} />);
+
+      for (const episode of episodes) {
+        expect(screen.getByRole("link", { name: episode.title })).toHaveAttribute(
+          "href",
+          episodeStudioRoute(episode.id),
+        );
       }
     });
 
