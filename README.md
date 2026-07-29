@@ -127,6 +127,8 @@ pnpm test:e2e
 
 `pnpm test:e2e` type checks `e2e/` first, then runs the suite. It builds `@plotpop/web` and serves it on port 3100, so it is safe to run while `pnpm dev` holds 3000; Turborepo caches the build, so a repeat run pays for the server start only.
 
+Accessibility runs in the same command: axe audits the page against the WCAG 2.2 AA rule sets in both themes, and explicit specs cover the keyboard path, the focus ring, and the rule from `docs/design-system.md` §6.8 that a state never rests on colour alone. axe's "best practice" rules stay off — a gate that has to be argued with is not a gate.
+
 The specs live in `e2e/` rather than inside `apps/web`, because `apps/web/tsconfig.json` compiles every `.ts` under the app and Vitest's default include claims `*.spec.ts` — a Playwright file in a workspace would be built by `next build` and executed by `pnpm test`. Everything runs at two viewports, 1440x900 for the Large tier and 390x844 for Small, the only two breakpoints `docs/design-system.md` §8.2 allows; specs whose subject is not the layout are listed in `playwright.config.ts` and run once.
 
 ### Probes
