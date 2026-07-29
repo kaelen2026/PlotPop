@@ -22,6 +22,7 @@
 - 队列：Redis + BullMQ。
 - 媒体：FFmpeg + FFprobe。
 - 文件：S3 兼容对象存储。
+- 容器：Docker + Docker Compose。
 - 测试：Vitest、Testing Library、Playwright。
 - 代码质量：ESLint、Prettier、TypeScript 严格模式。
 - 可观测性：OpenTelemetry、结构化日志和错误追踪。
@@ -54,6 +55,10 @@ PlotPop/
   tooling/
     eslint/
     typescript/
+  docker/
+    api.Dockerfile
+    worker.Dockerfile
+    compose.yaml
   turbo.json
   pnpm-workspace.yaml
   package.json
@@ -117,12 +122,20 @@ PlotPop/
 - 添加 `.editorconfig`、`.gitignore`、`.env.example`。
 - 添加统一脚本：`dev`、`build`、`typecheck`、`lint`、`test`、`test:e2e`。
 - 配置 CI：安装、类型检查、Lint、单元测试和构建。
-- 添加本地 PostgreSQL、Redis 和 S3 兼容存储的开发编排。
+- 为 API 和 Worker 编写多阶段 Dockerfile。
+- 使用非 Root 用户运行生产容器。
+- 使用 Docker Compose 编排本地 PostgreSQL、Redis、S3 兼容存储、API 和 Worker。
+- 添加容器健康检查、资源限制、持久化卷和独立网络。
+- 配置 `.dockerignore`，避免缓存、密钥和本地数据进入构建上下文。
+- 在 CI 中构建 API 与 Worker 镜像，并执行启动和健康检查。
 
 ### 6.2 完成标准
 
 - 新环境可以通过一条文档化命令启动依赖。
 - 三个应用可以独立开发和构建。
+- Docker Compose 可以启动完整本地依赖与服务。
+- API 和 Worker 镜像可以独立构建、运行并通过健康检查。
+- 生产镜像不包含开发依赖、源码缓存或明文密钥。
 - CI 在空功能骨架上全部通过。
 - 包之间不存在循环依赖。
 
@@ -428,6 +441,11 @@ PlotPop/
 - 执行支付、积分、生成和导出对账。
 - 完成隐私政策、服务条款、版权投诉和内容政策。
 - 配置预发布与生产隔离环境。
+- API、AI Worker 和 Media Worker 使用独立的多阶段 Docker 镜像。
+- 容器以非 Root 用户运行，并使用受限临时卷处理媒体文件。
+- 容器实现存活与就绪检查，并在终止信号到达后优雅停机。
+- CI 为镜像生成版本标签和内容摘要；生产环境只部署不可变镜像。
+- 镜像发布前执行依赖漏洞扫描和容器配置检查。
 - 执行数据库恢复、Worker 滚动升级和回滚演练。
 - 使用小规模邀请制 Beta 验证真实留存、成本和支持负担。
 
@@ -460,7 +478,7 @@ PlotPop/
 1. 初始化 pnpm Workspace 和 Turborepo。
 2. 创建 Web、API、Worker 与共享包骨架。
 3. 配置 TypeScript、ESLint、Prettier、Vitest 和 CI。
-4. 建立本地 PostgreSQL、Redis、对象存储环境。
+4. 建立 Docker Compose 本地环境，包括 PostgreSQL、Redis、S3 兼容对象存储、API 和 Worker。
 5. 定义最小领域状态机和测试。
 6. 建立 Provider 风险验证脚本框架。
 
