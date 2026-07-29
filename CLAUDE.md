@@ -13,9 +13,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - F-01.03：Biome、Vitest 严格化与覆盖率、Husky + lint-staged + commitlint、GitHub Actions CI。
 - F-01.04：API 与 Worker 多阶段镜像（非 Root）、Docker Compose 本地依赖（PostgreSQL + Redis + MinIO）、依赖就绪检查（Readiness），以及构建镜像并做启动健康验证的 CI 任务。
 
+**F-02 进行中：**
+
+- F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
+
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
-尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、`packages/ui`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
+尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
+
+`packages/ui` 目前**只有 Token 与主题解析，还没有任何组件**：`components.json`、`cn()`、shadcn/ui 组件源码、主题切换器和本地化资源都还不存在，随后续 F-02 切片建立。
 
 这意味着：
 
@@ -96,12 +102,13 @@ apps/worker   BullMQ consumers；AI Worker 与 Media Worker 分队列独立扩�
 packages/     auth api-client config contracts db domain observability providers testkit ui
 ```
 
-`packages/` 目前存在 `api-client`、`config`、`contracts`、`observability`，其余包在需要它们的切片里创建。
+`packages/` 目前存在 `api-client`、`config`、`contracts`、`observability`、`ui`，其余包在需要它们的切片里创建。
 
 - `contracts`：跨服务的 Zod 契约（服务名、Liveness、Readiness、日志级别）。**同一结构不得在别处再手写一遍。**
 - `config`：各服务环境变量的 Zod Schema 与解析。Web 的 Schema 里**没有**数据库、队列、存储字段 —— 这是 ADR-001 的边界，不要往里加。
 - `observability`：结构化日志与就绪检查探针。业务代码不要再写 `console.log`。
 - `api-client`：`hc<AppType>` 的预编译类型客户端；Web 侧只导入 `ApiClient`，不要在业务文件里重新 `hc<AppType>()`。
+- `ui`：设计 Token 与主题解析，`docs/design-system.md` 的实现处。色值只在这里出现，业务代码只消费 Utility。API 与 Worker **不得**依赖它。
 
 依赖方向：`api-client` → `apps/api`（**仅类型**，`import type`，不得让服务端运行时代码进入浏览器包）。
 
@@ -178,7 +185,11 @@ packages/     auth api-client config contracts db domain observability providers
 - 手写已有 shadcn/ui 组件的替代品，或在 `apps/web` 复制 `packages/ui` 的组件源码。
 - 硬编码可见文案 —— 全部从本地化资源读取（UI 首版英文）。
 
-主题为 `system | light | dark` 三态，必须在首次绘制前解析，禁止先渲染 Light 再切 Dark。状态表达必须同时具备文字标签和图标，不能只靠颜色区分。
+上面这几条不靠自觉：`apps/web/design-system.test.ts` 扫描 `apps/web/app` 与 `apps/web/components`，命中即失败，并在失败信息里指出对应条款。它同时限制 §8.1 的间距档位（只允许 1 2 3 4 6 8 12 16 24）和 §8.2 的断点（页面布局只用 `md:` 与 `xl:`）。被它挡住时应调整布局层级或补 Token，不要改扫描规则。
+
+Token 与主题实现在 `packages/ui/src/styles/theme.css`，`apps/web/app/globals.css` 只引入它。Tailwind v4 CSS-first，没有 `tailwind.config`。改任何色值都要跑 `pnpm --filter @plotpop/ui test` —— `theme.test.ts` 会重算全部 94 组对比度，并回填 `docs/design-system.md` §6.6。
+
+主题为 `system | light | dark` 三态，由 `<head>` 内联脚本在首次绘制前解析成 `data-theme`，禁止先渲染 Light 再切 Dark；`<html>` 上的 `suppressHydrationWarning` 是这条约束的必要结果，不要删。状态表达必须同时具备文字标签和图标，不能只靠颜色区分。
 
 规范覆盖不到新需求时：先更新 `docs/design-system.md` 和 Token，再写业务组件。**"仅此页面使用"不是绕过的理由**，偏离设计系统的实现算缺陷。
 
