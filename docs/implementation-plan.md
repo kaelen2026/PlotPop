@@ -13,7 +13,7 @@
 ## 2. 技术基线
 
 - Monorepo：pnpm Workspace + Turborepo。
-- Web：Next.js + TypeScript。
+- Web：Next.js + TypeScript + Tailwind CSS + shadcn/ui。
 - API：Hono + `@hono/node-server`。
 - Worker：Node.js + BullMQ。
 - 鉴权：Better Auth。
@@ -50,6 +50,7 @@ Zod 负责应用边界的解析与错误表达；PostgreSQL、Drizzle 和数据�
 PlotPop/
   apps/
     web/
+      components.json
     api/
     worker/
   packages/
@@ -62,6 +63,10 @@ PlotPop/
     providers/
     testkit/
     ui/
+      components.json
+      components/
+      lib/
+      styles/
   docs/
     ai-comic-drama-saas-design.md
     implementation-plan.md
@@ -142,6 +147,7 @@ PlotPop/
 
 - pnpm Workspace、Turborepo 和共享配置。
 - Next.js、Hono、Worker 最小应用。
+- Tailwind CSS 与 shadcn/ui Monorepo 配置。
 - Dockerfile 与 Docker Compose。
 - PostgreSQL、Redis 和 S3 兼容本地服务。
 - TypeScript、Lint、测试和 CI。
@@ -160,6 +166,9 @@ PlotPop/
 **范围：**
 
 - 设计 Token、字体、颜色、描边、投影和状态语义。
+- 使用 Tailwind CSS 语义 Token 实现 Pop Anime 主题，不在业务组件中散落原始颜色值。
+- 使用 shadcn/ui CLI 将组件源码添加到共享 `packages/ui`，Web 通过 Workspace Alias 引用。
+- 优先组合 shadcn/ui 现有组件；只有注册表中不存在合适组件时才创建自定义基础组件。
 - Creator Home、五步向导和 Episode Studio 静态交互原型。
 - 桌面与小屏审阅布局。
 - 键盘焦点和基础无障碍规则。
@@ -492,6 +501,10 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - 初始化 pnpm Workspace 和 Turborepo。
 - 创建 `apps/web`、`apps/api`、`apps/worker`。
 - 创建共享包和 TypeScript Project References。
+- 初始化 Next.js App Router、Tailwind CSS 和 shadcn/ui Monorepo 配置。
+- 将 shadcn/ui 组件、`cn()`、主题变量和共享样式放入 `packages/ui`。
+- 所有 shadcn/ui CLI 操作使用项目包管理器执行，即 `pnpm dlx shadcn@latest`。
+- 添加组件前先检查现有组件与注册表；更新已修改组件前使用 `--dry-run` 和 `--diff` 检查差异。
 - 启用 TypeScript 严格模式。
 - 配置 Biome Format、Lint、导入排序和共享规则。
 - 配置 Husky `pre-commit`，通过 lint-staged 只检查暂存文件。
@@ -758,7 +771,12 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 
 ### 14.1 基础体验
 
-- 实现 Pop Anime 设计 Token、字体、色板、描边、投影和组件状态。
+- 使用 Tailwind CSS 主题变量实现 Pop Anime 设计 Token、字体、色板、描边、投影和组件状态。
+- shadcn/ui 组件使用语义颜色与内置 Variant；布局类不得覆盖组件颜色和字体语义。
+- 表单使用 `FieldGroup`、`Field` 和对应的输入组件，并通过 `data-invalid` 与 `aria-invalid` 表达校验状态。
+- 反馈优先使用 shadcn/ui 的 Alert、Empty、Skeleton、Spinner、Progress 和 Sonner。
+- Dialog、Sheet、Drawer 必须提供可访问标题；Avatar 必须包含 Fallback。
+- 条件类使用 `cn()`，间距使用 `gap-*`，相同宽高使用 `size-*`。
 - 建立响应式布局、键盘操作和 WCAG 2.2 AA 基线。
 - 所有文案从本地化资源读取。
 
@@ -858,7 +876,7 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 第一批工作只包含：
 
 1. F-00：建立 Provider 风险验证脚本框架、测试集与结果记录格式。
-2. F-01：初始化 pnpm Workspace、Turborepo、Web、API、Worker 和共享包。
+2. F-01：初始化 pnpm Workspace、Turborepo、Next.js、Tailwind CSS、shadcn/ui、API、Worker 和共享包。
 3. F-01：配置 TypeScript、Biome、Husky、lint-staged、commitlint、Vitest 和 CI。
 4. F-01：建立 Docker Compose 本地环境，包括 PostgreSQL、Redis、S3 兼容对象存储、API 和 Worker。
 5. F-02：建立 Pop Anime 设计 Token 与 Creator Home、创作向导、Episode Studio 静态原型。
