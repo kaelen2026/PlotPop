@@ -22,7 +22,7 @@ import { type QualityTier, qualityTierSchema } from "./tiers.js";
  * a time is how an experiment gets started with the wrong price configured.
  */
 
-export const providerIdSchema = z.enum(["fake", "replicate"]);
+export const providerIdSchema = z.enum(["offline", "replicate"]);
 
 export type ProviderId = z.infer<typeof providerIdSchema>;
 
@@ -55,7 +55,7 @@ export type HarnessConfig = {
 };
 
 const defaultBaseUrls: Readonly<Record<ProviderId, string>> = {
-  fake: "http://localhost/offline",
+  offline: "http://localhost/offline",
   replicate: "https://api.replicate.com",
 };
 
@@ -63,7 +63,7 @@ const positiveInt = (fallback: number, max: number) =>
   z.coerce.number().int().positive().max(max).default(fallback);
 
 const shapeSchema = z.object({
-  PLOTPOP_RESEARCH_PROVIDER: providerIdSchema.default("fake"),
+  PLOTPOP_RESEARCH_PROVIDER: providerIdSchema.default("offline"),
   PLOTPOP_RESEARCH_API_TOKEN: z.string().min(1).optional(),
   PLOTPOP_RESEARCH_BASE_URL: z.url({ protocol: /^https?$/ }).optional(),
   PLOTPOP_RESEARCH_MODEL: z.string().min(1).optional(),
@@ -120,7 +120,7 @@ export function parseHarnessConfig(
   const env = parsed.data;
   const provider = env.PLOTPOP_RESEARCH_PROVIDER;
 
-  if (provider !== "fake") {
+  if (provider !== "offline") {
     const missing = requiredForRealProviders.filter((name) => env[name] === undefined);
 
     if (missing.length > 0) {
