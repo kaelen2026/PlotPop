@@ -59,8 +59,10 @@ docker run --detach --name "$container" --init \
   --env "STORAGE_ACCESS_KEY_ID=smoke" \
   --env "STORAGE_SECRET_ACCESS_KEY=smoke" \
   --env "BETTER_AUTH_SECRET=smoke-test-session-signing-secret-value" \
-  --env "AUTH_BASE_URL=http://localhost:3000" \
-  --env "AUTH_TRUSTED_ORIGINS=http://localhost:3000" \
+  `# The image sets NODE_ENV=production, and ADR-007 forbids a loopback trusted` \
+  `# origin there — so these have to look like a real deployment's.` \
+  --env "AUTH_BASE_URL=https://smoke.plotpop.invalid" \
+  --env "AUTH_TRUSTED_ORIGINS=https://smoke.plotpop.invalid" \
   "$image" >/dev/null
 
 published="$(docker port "$container" "${port}/tcp" | head -n 1)"
