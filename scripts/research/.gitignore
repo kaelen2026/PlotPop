@@ -1,0 +1,4 @@
+# Experiment output: generated video, attempt logs and the blind-review
+# un-blinding key. Never committed — it is large, it is per-run, and the mapping
+# file would defeat the blind review if it ever became readable from the repo.
+runs/
