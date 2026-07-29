@@ -1,0 +1,20 @@
+# Everything a build must not see: caches that would be stale, artefacts that are
+# rebuilt inside the image, secrets, and history.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+.git
+.github
+.husky
+docs
+docker
+
+.env
+.env.*
+**/*.log
+.DS_Store
