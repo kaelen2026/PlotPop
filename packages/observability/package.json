@@ -1,12 +1,16 @@
 {
-  "name": "@plotpop/worker",
+  "name": "@plotpop/observability",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc --build",
-    "start": "node dist/index.js",
     "typecheck": "tsc --build && tsc --project tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -14,13 +18,10 @@
   "devDependencies": {
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.10",
-    "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@plotpop/config": "workspace:*",
-    "@plotpop/contracts": "workspace:*",
-    "@plotpop/observability": "workspace:*"
+    "@plotpop/contracts": "workspace:*"
   }
 }
