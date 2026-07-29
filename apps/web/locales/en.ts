@@ -6,10 +6,25 @@
  * makes a loader worth its weight.
  */
 export const messages = {
+  shell: {
+    skipToContent: "Skip to content",
+  },
   theme: {
     group: "Theme",
     system: "System",
     light: "Light",
     dark: "Dark",
+  },
+  creatorHome: {
+    title: "Creator Home",
+    empty: {
+      title: "No episodes yet",
+      description:
+        "Bring a script and a cast. PlotPop turns them into a 5 to 10 minute episode you can review shot by shot.",
+      action: "Create episode",
+    },
+  },
+  landing: {
+    openCreatorHome: "Open Creator Home",
   },
 } as const;

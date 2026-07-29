@@ -338,6 +338,12 @@
   border-color: var(--border);
 }
 
+/* A divider between stacked regions — a header, a toolbar, a table row. */
+@utility stroke-hairline-b {
+  border-bottom-width: 1px;
+  border-bottom-color: var(--border);
+}
+
 @utility stroke-ink {
   border-width: 2px;
   border-color: var(--stroke-ink-color);

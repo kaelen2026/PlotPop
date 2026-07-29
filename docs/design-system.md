@@ -50,7 +50,7 @@ Light 与 Dark 均满足 WCAG 2.2 AA。键盘、焦点、动态效果降级和�
 - shadcn/ui 源码统一位于 `packages/ui`。
 - 业务应用不得复制 shadcn/ui 组件源码。
 
-Token 的实现是 `packages/ui/src/styles/theme.css`，`apps/web/app/globals.css` 只负责引入它。Tailwind 没有时长、描边宽度和焦点 Ring 的 Theme 命名空间，所以 §9.2 与 §10 的这几个 Token 以 Utility 形式提供：`duration-instant | fast | normal | slow`、`stroke-hairline | ink | ink-bold`、`focus-ring`。`stroke-ink` 自带 §9.2 的主题差异（Light 用 `brand-ink`，Dark 用 `border`），业务组件因此不需要写 `dark:` 覆盖。
+Token 的实现是 `packages/ui/src/styles/theme.css`，`apps/web/app/globals.css` 只负责引入它。Tailwind 没有时长、描边宽度和焦点 Ring 的 Theme 命名空间，所以 §9.2 与 §10 的这几个 Token 以 Utility 形式提供：`duration-instant | fast | normal | slow`、`stroke-hairline | hairline-b | ink | ink-bold`、`focus-ring`。`stroke-ink` 自带 §9.2 的主题差异（Light 用 `brand-ink`，Dark 用 `border`），业务组件因此不需要写 `dark:` 覆盖。
 
 Primitive 层统一使用 `--pp-` 前缀，且不映射成任何 Tailwind Utility，所以业务代码无法引用到基础色阶（§4.1）。
 
@@ -404,6 +404,7 @@ Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。注意 `bra
 | Token | 值 | 用途 |
 |---|---|---|
 | `stroke-hairline` | 1px | 基础表面与分隔线，使用 `border` |
+| `stroke-hairline-b` | 1px | 上下堆叠区域之间的分隔线（Header、工具栏、表格行），只画下边 |
 | `stroke-ink` | 2px | 品牌卡片与主要 CTA 的漫画式描边，使用 `brand-ink` |
 | `stroke-ink-bold` | 3px | 官网首屏与关键空状态的品牌强调 |
 

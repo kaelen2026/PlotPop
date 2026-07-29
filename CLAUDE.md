@@ -17,12 +17,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
 - F-02.02：`system | light | dark` 切换器。shadcn/ui 接入 `packages/ui`（`components.json`、`cn()`、`toggle`/`toggle-group`/`skeleton`），Vitest + Testing Library 组件测试，以及 `apps/web/locales/en.ts` 本地化骨架。切换写 `localStorage` 并即时改根属性，不刷新页面；选 `system` 时持续跟随操作系统。
+- F-02.03：Creator Home 空状态。`apps/web/components/app-shell.tsx` 是登录后页面的外壳（Skip 链接 + Header + `container-app`），`/home` 是空状态（`empty`、`button`），`/` 是通向它的临时落地页。路由集中在 `apps/web/lib/routes.ts`。
 
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
 尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
 
-`packages/ui` 目前只有 Token、主题与三个注册表组件；Creator Home、五步向导、Episode Studio 原型和视觉回归都还不存在，随后续 F-02 切片建立。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
+`packages/ui` 目前只有 Token、主题与五个注册表组件（`toggle`、`toggle-group`、`skeleton`、`button`、`empty`）；剧集列表填充态与统一状态表达（§12.4）、五步向导、Episode Studio 原型、小屏审阅布局和视觉回归都还不存在，随后续 F-02 切片建立。`routes.newEpisode`（`/episodes/new`）目前**指向一个还不存在的路由**，由向导切片建立。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
 
 这意味着：
 
@@ -119,7 +120,9 @@ packages/     auth api-client config contracts db domain observability providers
 - 它**导出 TSX 源码而不是 `dist`**（`apps/web` 用 `transpilePackages` 转译），这样改组件不用先构建就能热更新。因此它没有 `build` 脚本，`typecheck` 是 `tsc --noEmit`。
 - 因为走打包器解析，包内相对导入**不带 `.js` 后缀**。Turbopack 不会把 `.js` 映射到 `.ts`，加后缀会让 `next build` 直接失败。其他包仍是 nodenext + `.js`，别互相套用。
 
-组件的可见文案一律走 props，不写在组件里（§14）；文案放 `apps/web/locales/en.ts`。
+`packages/ui` 里的组件可见文案一律走 props，不写在组件里（§14）。`apps/web/components/` 下的外壳与页面组件属应用组合，不是基础组件，可以直接读 `apps/web/locales/en.ts`。
+
+`apps/web` 的 `tsconfig.json` 用 `jsx: preserve`（Next 自己编译 JSX），所以 Vitest 侧要在 `vitest.config.ts` 里用 `oxc.jsx` 补上转换，`@/*` 别名也要在那里重复一遍 —— Vitest 不读 tsconfig 的 paths。两处必须同时改。
 
 依赖方向：`api-client` → `apps/api`（**仅类型**，`import type`，不得让服务端运行时代码进入浏览器包）。
 
