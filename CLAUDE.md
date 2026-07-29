@@ -23,11 +23,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - F-02.05：五步创作向导。`/episodes/new` 出现，Creator Home 的入口不再悬空。脚本步骤有真实表单与 Zod 校验（`episodeDraftInputSchema` 在 `packages/contracts`），其余四步可走通但只展示该步要做什么，表单随后续切片补齐。新增注册表组件：`field`、`input`、`textarea`、`label`、`separator`、`alert`。
 - F-02.04：剧集列表与统一状态表达。`generationStatusSchema` 进 `packages/contracts`，`GenerationStatusBadge` 进 `packages/ui`（Badge 补了 `success`/`warning`/`info` 三个语义 Variant）。Creator Home 现在按 `episodes` 长度在列表与空状态之间切换，数据来自 `apps/web/lib/prototype-episodes.ts`（占位，接 API 时删掉）。
 
+**F-03 进行中（最窄端到端 happy path 已完成）：**
+
+- `packages/db` 从零创建：Postgres 客户端与仓库第一个迁移运行器。迁移是纯 SQL，命名 `<四位版本>_<lower_snake_case>.sql`，按版本升序应用，应用后记校验和且**不得再改**；账本键是 `(source, version)`，多个 source 按声明顺序应用 —— ADR-007 要求 Better Auth 表与业务表分属不同迁移边界。顺序在 `apps/api/src/migrations.ts` 声明（只有它同时看得见两个包）。
+- `packages/auth` 从零创建：Better Auth 实例、drizzle Schema 与自己的迁移。挂在 `apps/api` 的 `/api/auth/*`，转发原始 Request。API 只依赖窄接口 `AuthService`，不让 Better Auth 的推导类型进入 RPC 客户端预计算的类型树。
+- 邮箱密码注册与登录；注册后幂等创建 Workspace、Owner 成员与空 Credit Account（同事务）。幂等由 `workspace (owner_user_id) where is_personal` 的部分唯一索引保证。**积分账本逻辑属 F-06，这里只有余额的 `CHECK (>= 0)`。**
+- Session 中间件与 Workspace 隔离：`/api/v1/workspaces`、`/current`、`/:workspaceId`。归属条件写在查询里（`listWorkspacesForUser`、`findWorkspaceForMember`），别人的 Workspace 一律 404 而非 403。
+- Web `/sign-in`、`/sign-up`，以及 `next.config.ts` 里 `/api/*` 的同源 Rewrite（ADR-007）。表单用 `packages/contracts` 的同一组 Zod Schema 校验。
+
+**F-03 尚未做**：邮箱验证邮件与账户恢复、社交登录、账户级主题偏好与跨设备同步（`docs/design-system.md` §5.1）、Creator Home 页面、`/api/v1/workspaces` 的写操作（因此跨 Workspace **写**拒绝还没有端到端测试；`requireSession` 与归属查询本身与方法无关）。
+
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
-尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
+尚不存在：`packages/domain`、`packages/providers`、`packages/testkit`、Outbox 与队列、优雅停机（属 §16）。测试工厂目前放在各自的测试里；`packages/testkit` 在第一个需要跨 workspace 共享工厂的切片里建立。
 
-`packages/ui` 目前有 Token、主题、十二个注册表组件与 `GenerationStatusBadge`。向导只有脚本步骤有表单，其余四步只展示说明。Studio 只做到浏览：**Timeline、镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口都还不存在**。§12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**，剧集列表的行暂时不可点击。余额与预估目前是 `apps/web/lib/prototype-estimate.ts` 的占位数据；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
+`packages/ui` 目前有 Token、主题、十二个注册表组件与 `GenerationStatusBadge`。向导只有脚本步骤有表单，其余四步只展示说明。Studio 只做到浏览：**Timeline、镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口都还不存在**。§12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**，剧集列表的行暂时不可点击。余额与预估目前是 `apps/web/lib/prototype-estimate.ts` 的占位数据；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，本次 F-03 切片没做，见上面的「F-03 尚未做」。
+
+鉴权页面是在 `Field` / `Input` / `Label` / `Alert` 进入 `packages/ui` 之前写的，所以**用带语义 Token 的原生元素搭成**。这些组件现在已经有了（F-02.05 带进来的），下一个碰鉴权页面的切片应当替换过去；替换不会改变视觉，因为页面里没有任何非 Token 值。
 
 这意味着：
 
@@ -50,15 +62,21 @@ pnpm docker:down    # 停止，保留数据卷
 pnpm dev            # Turborepo 并行启动 Web + API + Worker（读仓库根 .env）
 pnpm build
 pnpm typecheck
-pnpm test           # Vitest
+pnpm test           # Vitest，只跑不需要数据库的测试
+pnpm test:integration  # Vitest，跑真实 PostgreSQL 的测试（先 pnpm docker:up）
 pnpm test:coverage  # Vitest + v8 覆盖率（text-summary + lcov）
+pnpm db:migrate     # 应用待处理迁移（= pnpm --filter @plotpop/api migrate）
 pnpm lint           # Biome：format + lint + 导入排序，警告即失败
 pnpm lint:fix       # 同上，写回可自动修复的部分
 ```
 
-首次准备环境：`cp .env.example .env`。`.env.example` 被 `packages/config` 的测试解析，新增环境变量必须同步写进去，否则测试失败。
+首次准备环境：`cp .env.example .env`，`pnpm docker:up`，然后 `pnpm db:migrate`。`.env.example` 被 `packages/config` 的测试解析，新增环境变量必须同步写进去，否则测试失败。
 
-注意：只有 API 与 Worker 用 `--env-file-if-exists=../../.env` 读仓库根 `.env`；`next dev` 只读 `apps/web/` 下的 `.env*`。Web 开始调用 API 那一刻，需要在该切片里用 `@next/env` 的 `loadEnvConfig` 指向仓库根，并接上 `parseWebEnv`（Schema 已就绪，暂无运行时消费者）。
+迁移只在发布步骤里跑，不在服务进程里跑 —— 迁移失败不该顺带让 API 起不来。文件名 `<0000>_<lower_snake_case>.sql`，只向前，不写 down；已应用的文件被校验和锁住，改历史会让整次运行失败而不是让环境悄悄分叉。补一个编号更低的迁移也会被拒绝：那意味着两个分支抢了同一个号。
+
+**`*.integration.test.ts` 通过包导出解析工作区依赖（也就是 `dist`），不是源码。** 直接 `pnpm --filter @plotpop/api test:integration` 会跑在上一次构建的 `packages/db` 上，改了源码却没重建时结果是假的。根命令 `pnpm test:integration` 走 Turborepo 的 `^build`，所以它总是先构建；单包跑之前请自己 `pnpm --filter @plotpop/db build`。
+
+注意：只有 API 与 Worker 用 `--env-file-if-exists=../../.env` 读仓库根 `.env`。Web 侧 `next.config.ts` 用 `@next/env` 的 `loadEnvConfig` 指向仓库根，**必须带 `forceReload`**：Next 在加载配置前已经为 `apps/web` 读过一次环境，加载器会缓存第一次的结果。目录取自 `process.cwd()` 而不是 `import.meta.url`，因为 Next 会把配置编译到别处再执行。
 
 只要本地依赖、不要容器化的 API/Worker：`docker compose -f docker/compose.yaml stop api worker`。
 
@@ -111,10 +129,12 @@ apps/worker   BullMQ consumers；AI Worker 与 Media Worker 分队列独立扩�
 packages/     auth api-client config contracts db domain observability providers testkit ui
 ```
 
-`packages/` 目前存在 `api-client`、`config`、`contracts`、`observability`、`ui`，其余包在需要它们的切片里创建。
+`packages/` 目前存在 `api-client`、`auth`、`config`、`contracts`、`db`、`observability`、`ui`，其余包在需要它们的切片里创建。
 
-- `contracts`：跨服务的 Zod 契约（服务名、Liveness、Readiness、日志级别）。**同一结构不得在别处再手写一遍。**
-- `config`：各服务环境变量的 Zod Schema 与解析。Web 的 Schema 里**没有**数据库、队列、存储字段 —— 这是 ADR-001 的边界，不要往里加。
+- `contracts`：跨服务的 Zod 契约（服务名、Liveness、Readiness、日志级别、统一错误载荷、Workspace、凭据规则）。**同一结构不得在别处再手写一遍** —— 密码最小长度只在这里，`packages/auth` 与 Web 表单都读它。
+- `config`：各服务环境变量的 Zod Schema 与解析。Web 的 Schema 里**没有**数据库、队列、存储字段，Worker 的 Schema 里**没有** Better Auth 密钥 —— 这是 ADR-001 与 ADR-007 的边界，不要往里加。
+- `db`：Postgres 客户端、业务表的 drizzle 定义、迁移运行器与仓库函数。**归属条件写在查询里**（`listWorkspacesForUser`、`findWorkspaceForMember`），路由不得自己拼查询再补一层权限判断。测试专用助手在 `@plotpop/db/testing`，不在主入口。
+- `auth`：Better Auth 实例、它的 drizzle Schema 与自己的迁移边界（ADR-007）。对外只暴露窄接口 `AuthService`（`handler` + `getSession`）；**不要把 Better Auth 的推导实例类型放进 Hono 路由树**，那会把它整个插件表面拖进 RPC 客户端的类型计算。业务概念不进这个包：注册后的 Workspace provisioning 由 `apps/api/src/auth-service.ts` 以回调注入。
 - `observability`：结构化日志与就绪检查探针。业务代码不要再写 `console.log`。
 - `api-client`：`hc<AppType>` 的预编译类型客户端；Web 侧只导入 `ApiClient`，不要在业务文件里重新 `hc<AppType>()`。
 - `ui`：设计 Token、主题与 shadcn/ui 组件，`docs/design-system.md` 的实现处。色值只在这里出现，业务代码只消费 Utility。API 与 Worker **不得**依赖它。
