@@ -1,5 +1,5 @@
 import { authMigrationSource } from "@plotpop/auth";
-import type { MigrationSource } from "@plotpop/db";
+import { coreMigrationSource, type MigrationSource } from "@plotpop/db";
 
 /**
  * Every migration boundary this database has, in the order they must be applied.
@@ -12,4 +12,7 @@ import type { MigrationSource } from "@plotpop/db";
  * lowest place that can see both packages — `packages/auth` depends on
  * `packages/db`, so `packages/db` cannot name the auth source.
  */
-export const migrationSources: readonly MigrationSource[] = [authMigrationSource];
+export const migrationSources: readonly MigrationSource[] = [
+  authMigrationSource,
+  coreMigrationSource,
+];

@@ -1,5 +1,4 @@
 import { serve } from "@hono/node-server";
-import { createAuthService } from "@plotpop/auth";
 import { parseApiEnv } from "@plotpop/config";
 import { createDatabase } from "@plotpop/db";
 import {
@@ -10,6 +9,7 @@ import {
   redisProbe,
 } from "@plotpop/observability";
 import { createApp } from "./app.js";
+import { createApiAuthService } from "./auth-service.js";
 
 // Parsed before the server binds: a container missing a credential should fail
 // its own startup, not its first request.
@@ -18,8 +18,9 @@ const logger = createLogger({ service: "api", level: config.logLevel });
 
 const db = createDatabase({ url: config.database.url });
 
-const auth = createAuthService({
+const auth = createApiAuthService({
   db,
+  logger,
   secret: config.auth.secret,
   baseUrl: config.auth.baseUrl,
   trustedOrigins: config.auth.trustedOrigins,
