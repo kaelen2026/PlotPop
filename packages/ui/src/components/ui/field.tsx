@@ -23,6 +23,14 @@ import { useMemo } from "react";
  *   own live region, which is right on its own but speaks four times on a three
  *   field failure once §11.2's form level summary is also present.
  *
+ * - The selected card is `border-accent`, not the registry's `border-primary`
+ *   plus `bg-primary/5` plus a `dark:` override. §6.2 assigns 选中 to `accent`,
+ *   which is what `toggle.tsx` already does; an opacity mix invents a value §6.6
+ *   never verified, and needing a per theme override is the proof that it was
+ *   never a token. There is no selected *surface* token to tint with, so the
+ *   state reads from the border plus the control's own checked state — two
+ *   channels, as §6.8 requires. `state-expression.test.ts` holds this.
+ *
  * Three lint findings in the registry source are addressed here rather than
  * suppressed wholesale: `== 1` becomes `===`, and the error list keys on the
  * message instead of the array index, which is stable because the list is
@@ -139,7 +147,7 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
       className={cn(
         "group/field-label peer/field-label flex w-fit gap-2 group-data-[disabled=true]/field:opacity-50",
         "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col has-[>[data-slot=field]]:rounded-md has-[>[data-slot=field]]:border [&>*]:data-[slot=field]:p-4",
-        "has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10",
+        "has-data-[state=checked]:border-accent",
         className,
       )}
       {...props}

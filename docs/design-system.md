@@ -90,6 +90,10 @@ Primitive 层统一使用 `--pp-` 前缀，且不映射成任何 Tailwind Utilit
 
 Chart Token 尚未定义取值：第一个图表出现时按 §17 走例外流程补齐，并纳入 §6.6 的对比度验证。媒体背景见 §6.5。
 
+`Selected` 不是独立取值：§6.2 已经把「选中」指派给 `accent`，本节列出它是为了说明这个语义有归属，而不是要求第二个变量。选中态的实现基准是 `toggle.tsx` 的 `data-[state=on]:bg-accent`。**不得**用 `primary` 加透明度混色表达选中 —— 混出来的值不在 §6.6 的验证范围内，而需要 `dark:` 补一层则说明它从来不是 Token。这条由 `packages/ui/src/components/state-expression.test.ts` 扫描组件源码强制。
+
+`Hover`、`Pressed`、`Disabled` **尚未定义取值**：§6 里没有条目，`theme.css` 里也没有变量。现有组件用 `/90` 一类的透明度混色表达 Hover 与 Pressed、用 `opacity-50` 表达 Disabled，这是从 shadcn/ui 注册表带进来的权宜之计，不是批准的语义，也没有经过 §6.6 验证。第一个需要精确控制这三态的组件出现时，按 §17 走例外流程补齐取值并纳入 §6.6；在那之前不新增此类混色。`state-expression.test.ts` 刻意不拦这三态 —— Token 还不存在时拦下来，只会把即兴表达赶到更难发现的地方。
+
 ### 4.3 Component Token
 
 只在跨页面稳定复用且 Semantic Token 无法准确表达时创建，例如：
@@ -683,6 +687,16 @@ CI 必须执行：
 - Tailwind 任意值颜色与阴影。
 - 未批准的 `dark:` 颜色覆盖。
 - 业务应用内复制的基础 UI 组件。
+
+已落地的三道扫描门禁，各自负责一层，互不重叠：
+
+| 门禁 | 扫什么 | 拦什么 |
+|---|---|---|
+| `apps/web/design-system.test.ts` | `apps/web/app`、`apps/web/components` | §16 的业务代码禁止项：硬编码色值、任意值、`space-x/y-*`、`dark:` 覆盖、§8.1 之外的间距、§8.2 之外的断点 |
+| `packages/ui/src/styles/theme.test.ts` | `theme.css` | §6.6 的 94 组对比度、Light 与 Dark 的 Token 一一对应 |
+| `packages/ui/src/components/state-expression.test.ts` | `packages/ui` 组件源码 | 选中态必须用 `accent`（§6.2），不得用透明度混色（§6.6 验不到）或 `dark:` 覆盖（§5.3 / §5.4） |
+
+第三道存在的原因是前两道之间有个缺口：业务扫描**豁免** `packages/ui`（色值本来就该在那里），而对比度验证只读 `theme.css`、从不读组件。所以一个基础组件自己混出来的颜色对两者都是不可见的。`field.tsx` 的选中卡片正是这样进入主线的。
 
 ## 19. 设计验收清单
 
