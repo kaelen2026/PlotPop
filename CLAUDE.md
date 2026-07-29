@@ -6,12 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**只有工程骨架，还没有业务功能。** 已完成：
+**只有工程骨架，还没有业务功能。F-01 已全部完成：**
 
 - F-01.01：pnpm Workspace + Turborepo、`apps/web`、`apps/api`、`apps/worker` 三个最小应用、`packages/contracts`（Zod）、`tooling/typescript` 共享编译配置，以及三个服务各自的存活检查（Liveness）。
+- F-01.02：`packages/config` 用 Zod 在启动时解析各服务环境变量，缺凭据直接启动失败。
 - F-01.03：Biome、Vitest 严格化与覆盖率、Husky + lint-staged + commitlint、GitHub Actions CI。
+- F-01.04：API 与 Worker 多阶段镜像（非 Root）、Docker Compose 本地依赖（PostgreSQL + Redis + MinIO）、依赖就绪检查（Readiness），以及构建镜像并做启动健康验证的 CI 任务。
 
-尚不存在：Docker Compose、PostgreSQL 与 Redis、就绪检查（Readiness）、`packages/` 下其余包、Playwright 与 `test:e2e`、Dockerfile 与镜像 CI。
+此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
+
+尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、`packages/ui`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
 
 这意味着：
 
@@ -29,7 +33,9 @@ PlotPop 是面向北美、英文优先的 AI 漫剧创作 SaaS。用户提交英
 已经可用：
 
 ```bash
-pnpm dev            # Turborepo 并行启动 Web + API + Worker
+pnpm docker:up      # 起本地依赖 + API/Worker 容器，等到全部 healthy
+pnpm docker:down    # 停止，保留数据卷
+pnpm dev            # Turborepo 并行启动 Web + API + Worker（读仓库根 .env）
 pnpm build
 pnpm typecheck
 pnpm test           # Vitest
@@ -37,6 +43,12 @@ pnpm test:coverage  # Vitest + v8 覆盖率（text-summary + lcov）
 pnpm lint           # Biome：format + lint + 导入排序，警告即失败
 pnpm lint:fix       # 同上，写回可自动修复的部分
 ```
+
+首次准备环境：`cp .env.example .env`。`.env.example` 被 `packages/config` 的测试解析，新增环境变量必须同步写进去，否则测试失败。
+
+注意：只有 API 与 Worker 用 `--env-file-if-exists=../../.env` 读仓库根 `.env`；`next dev` 只读 `apps/web/` 下的 `.env*`。Web 开始调用 API 那一刻，需要在该切片里用 `@next/env` 的 `loadEnvConfig` 指向仓库根，并接上 `parseWebEnv`（Schema 已就绪，暂无运行时消费者）。
+
+只要本地依赖、不要容器化的 API/Worker：`docker compose -f docker/compose.yaml stop api worker`。
 
 仍规划中（来自 `docs/implementation-plan.md` §2 与 §6.1，由后续批次建立）：
 
@@ -59,7 +71,14 @@ pnpm --filter <workspace> test -- path/to/file.test.ts
 pnpm --filter <workspace> test -- -t "测试名称"
 ```
 
-本地依赖（PostgreSQL、Redis、S3 兼容存储）通过 Docker Compose 启动，编排文件规划在 `docker/compose.yaml`。
+镜像与容器验证：
+
+```bash
+docker build -f docker/api.Dockerfile -t plotpop-api .
+docker/smoke.sh plotpop-api:latest api 3001   # CI 用的同一个脚本
+```
+
+发布端口默认只绑 loopback，且可覆盖（机器上已有 PostgreSQL 时）：`POSTGRES_HOST_PORT=5433 pnpm docker:up`。
 
 shadcn/ui 组件一律用项目包管理器操作，且添加到 `packages/ui` 而非 `apps/web`：
 
@@ -77,7 +96,14 @@ apps/worker   BullMQ consumers；AI Worker 与 Media Worker 分队列独立扩�
 packages/     auth api-client config contracts db domain observability providers testkit ui
 ```
 
-`packages/` 目前只存在 `contracts`，其余包在需要它们的切片里创建。
+`packages/` 目前存在 `api-client`、`config`、`contracts`、`observability`，其余包在需要它们的切片里创建。
+
+- `contracts`：跨服务的 Zod 契约（服务名、Liveness、Readiness、日志级别）。**同一结构不得在别处再手写一遍。**
+- `config`：各服务环境变量的 Zod Schema 与解析。Web 的 Schema 里**没有**数据库、队列、存储字段 —— 这是 ADR-001 的边界，不要往里加。
+- `observability`：结构化日志与就绪检查探针。业务代码不要再写 `console.log`。
+- `api-client`：`hc<AppType>` 的预编译类型客户端；Web 侧只导入 `ApiClient`，不要在业务文件里重新 `hc<AppType>()`。
+
+依赖方向：`api-client` → `apps/api`（**仅类型**，`import type`，不得让服务端运行时代码进入浏览器包）。
 
 服务边界是硬约束，不是建议：
 
@@ -86,6 +112,13 @@ packages/     auth api-client config contracts db domain observability providers
 - **Worker 不依赖** Next.js 路由或 Hono 路由代码。
 
 理由见 `docs/adr/ADR-001-service-boundaries.md`、`ADR-007-better-auth-same-origin.md`。
+
+### 存活检查与就绪检查不能混用
+
+- `/health`（三个服务都有）：**只报进程自身是否活着，绝不碰依赖。** 数据库不可达时它必须仍返回 200 —— 重启容器不会让 PostgreSQL 恢复，让编排器据此重启只会加长故障时间。
+- `/ready`（API 与 Worker）：报"该不该给我发流量"，逐个探测依赖，任一不可达返回 503 与 `degraded`。
+- 探针必须**说协议**，不能只 `connect`：容器运行时会接受发往已停止容器的连接，只连不说话会把死掉的依赖报成健康。见 `packages/observability/src/probes.ts`。
+- 就绪响应里**不放** 主机名、凭据和失败原因；原因写日志。
 
 ## 必须理解的六条不变量
 
