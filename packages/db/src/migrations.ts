@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { PoolClient } from "pg";
 import type { Database } from "./client.js";
 
 /*
@@ -111,12 +112,16 @@ function checksum(sql: string): string {
 }
 
 /**
- * Statements are sent through the pool rather than `db.execute`: a migration file
- * holds several statements, and node-postgres only allows that on the simple
- * query protocol, which it uses when a query carries no parameters.
+ * Statements are sent through a checked-out connection rather than `db.execute`:
+ * a migration file holds several statements, and node-postgres only allows that
+ * on the simple query protocol, which it uses when a query carries no parameters.
+ *
+ * Every statement in a run shares the one connection the run holds. Reaching back
+ * into the pool for a second one deadlocks a single-connection pool, which is
+ * exactly the pool a release step opens.
  */
-async function ensureLedger(db: Database): Promise<void> {
-  await db.$client.query(`
+async function ensureLedger(connection: PoolClient): Promise<void> {
+  await connection.query(`
     create table if not exists ${LEDGER_TABLE} (
       source text not null,
       version text not null,
@@ -146,7 +151,7 @@ export async function applyMigrations(
 
   try {
     await connection.query("select pg_advisory_lock($1)", [LOCK_KEY]);
-    await ensureLedger(db);
+    await ensureLedger(connection);
 
     for (const source of sources) {
       const files = await readMigrationFiles(source.directory);

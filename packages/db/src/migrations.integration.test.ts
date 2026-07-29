@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { closeDatabase, createDatabase } from "./client.js";
 import { applyMigrations, type MigrationSource } from "./migrations.js";
 import { createTestDatabase, type TestDatabase } from "./testing/temp-database.js";
 
@@ -129,6 +130,24 @@ describe("migration runner", () => {
 
     await expect(applyMigrations(database.db, [backfilled])).rejects.toThrow(/renumber it/);
     expect(await tableExists(database, "earlier_thing")).toBe(false);
+  });
+
+  // A release step opens the smallest pool it can. Every statement therefore has
+  // to go through the one connection the run already holds: reaching back into
+  // the pool for a second one waits for a connection that only this run can free.
+  it("runs on a pool that allows a single connection", async () => {
+    const single = createDatabase({ url: database.url, maxConnections: 1 });
+    const core = await source("single", {
+      "0001_single.sql": "create table single_thing (id text primary key);",
+    });
+
+    try {
+      await applyMigrations(single, [core]);
+    } finally {
+      await closeDatabase(single);
+    }
+
+    expect(await tableExists(database, "single_thing")).toBe(true);
   });
 
   it("leaves no trace of a migration whose statements failed", async () => {
