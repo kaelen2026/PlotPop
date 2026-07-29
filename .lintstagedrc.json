@@ -1,0 +1,5 @@
+{
+  "*": [
+    "biome check --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true --colors=off"
+  ]
+}
