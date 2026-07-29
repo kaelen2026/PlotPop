@@ -24,7 +24,9 @@
 - 文件：S3 兼容对象存储。
 - 容器：Docker + Docker Compose。
 - 测试：Vitest、Testing Library、Playwright。
-- 代码质量：ESLint、Prettier、TypeScript 严格模式。
+- 代码质量：Biome（Format + Lint）、TypeScript 严格模式。
+- Git Hooks：Husky + lint-staged。
+- 提交规范：commitlint + Conventional Commits。
 - 可观测性：OpenTelemetry、结构化日志和错误追踪。
 
 具体托管供应商在基础设施阶段通过短期验证确定，领域代码不得依赖厂商 SDK 以外的专有能力。
@@ -53,12 +55,17 @@ PlotPop/
     adr/
     runbooks/
   tooling/
-    eslint/
     typescript/
+  .husky/
+    pre-commit
+    commit-msg
   docker/
     api.Dockerfile
     worker.Dockerfile
     compose.yaml
+  biome.json
+  commitlint.config.ts
+  lint-staged.config.mjs
   turbo.json
   pnpm-workspace.yaml
   package.json
@@ -472,7 +479,10 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - 创建 `apps/web`、`apps/api`、`apps/worker`。
 - 创建共享包和 TypeScript Project References。
 - 启用 TypeScript 严格模式。
-- 配置统一 ESLint、Prettier 和导入边界规则。
+- 配置 Biome Format、Lint、导入排序和共享规则。
+- 配置 Husky `pre-commit`，通过 lint-staged 只检查暂存文件。
+- 配置 Husky `commit-msg`，通过 commitlint 校验 Conventional Commits。
+- 在 CI 中对完整仓库执行 Biome Check，防止跳过本地 Hook 的提交进入主分支。
 - 配置 Vitest 与测试覆盖率输出。
 - 添加 `.editorconfig`、`.gitignore`、`.env.example`。
 - 添加统一脚本：`dev`、`build`、`typecheck`、`lint`、`test`、`test:e2e`。
@@ -491,7 +501,9 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - Docker Compose 可以启动完整本地依赖与服务。
 - API 和 Worker 镜像可以独立构建、运行并通过健康检查。
 - 生产镜像不包含开发依赖、源码缓存或明文密钥。
-- CI 在空功能骨架上全部通过。
+- CI 的 Biome Check、类型检查、测试和构建全部通过。
+- 格式或 Lint 不通过的暂存文件无法提交。
+- 不符合 Conventional Commits 的提交信息无法提交。
 - 包之间不存在循环依赖。
 
 ## 7. 阶段 2：领域模型与数据库
@@ -832,7 +844,7 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 
 1. F-00：建立 Provider 风险验证脚本框架、测试集与结果记录格式。
 2. F-01：初始化 pnpm Workspace、Turborepo、Web、API、Worker 和共享包。
-3. F-01：配置 TypeScript、ESLint、Prettier、Vitest 和 CI。
+3. F-01：配置 TypeScript、Biome、Husky、lint-staged、commitlint、Vitest 和 CI。
 4. F-01：建立 Docker Compose 本地环境，包括 PostgreSQL、Redis、S3 兼容对象存储、API 和 Worker。
 5. F-02：建立 Pop Anime 设计 Token 与 Creator Home、创作向导、Episode Studio 静态原型。
 
