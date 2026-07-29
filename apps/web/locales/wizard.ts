@@ -58,6 +58,9 @@ export const wizard = {
       "PlotPop drafts scenes and shots with duration, shot size, lines, action and prompts. Reorder, add, remove, split or merge them before any video is generated.",
   },
   animate: {
+    confirm: "Confirm cost and generate",
+    reconfirm: "Confirm the new cost and generate",
+    blocked: "Add credits to continue",
     description:
       "PlotPop estimates the credits and asks you to confirm, then reserves them and generates video and audio shot by shot.",
   },

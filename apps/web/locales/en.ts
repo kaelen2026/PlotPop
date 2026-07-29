@@ -15,6 +15,7 @@
  * forgotten line cannot reach the browser as absent copy.
  */
 import { creatorHome } from "./creator-home";
+import { creditCost } from "./credit-cost";
 import { generationStatus } from "./generation-status";
 import { landing } from "./landing";
 import { shell } from "./shell";
@@ -24,6 +25,7 @@ import { wizard } from "./wizard";
 
 export const messages = {
   creatorHome,
+  creditCost,
   generationStatus,
   landing,
   shell,

@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
 - F-02.02：`system | light | dark` 切换器。shadcn/ui 接入 `packages/ui`（`components.json`、`cn()`、`toggle`/`toggle-group`/`skeleton`），Vitest + Testing Library 组件测试，以及 `apps/web/locales/en.ts` 本地化骨架。切换写 `localStorage` 并即时改根属性，不刷新页面；选 `system` 时持续跟随操作系统。
 - F-02.03：Creator Home 空状态。`apps/web/components/app-shell.tsx` 是登录后页面的外壳（Skip 链接 + Header + `container-app`），`/home` 是空状态（`empty`、`button`），`/` 是通向它的临时落地页。路由集中在 `apps/web/lib/routes.ts`。
+- F-02.07：生成前的积分预估与确认（§12.5）。`creditEstimateSchema` 进 `packages/contracts`，含 `coversEstimate`（按**上界**判断，不是下界）与 `requiresReconfirmation`。`CreditCost` 组件进 `packages/ui`，动画步骤用它，余额不足时按钮直接禁用。
 - F-02.06：Episode Studio 三栏工作台。`/episodes/[id]` 出现，剧集列表的标题成为进入它的链接。§8.4 的三栏宽度实现为 `studio-grid` utility（业务代码不写任意值），Scene Navigator 可浏览场景与镜头并选中镜头，Preview 与 Inspector 作为稳定区域存在但内容随后续切片补齐。无障碍门禁扩展到全部四个页面，视觉基线新增 Studio 的 Light/Dark × 两个层级。
 - F-02.05：五步创作向导。`/episodes/new` 出现，Creator Home 的入口不再悬空。脚本步骤有真实表单与 Zod 校验（`episodeDraftInputSchema` 在 `packages/contracts`），其余四步可走通但只展示该步要做什么，表单随后续切片补齐。新增注册表组件：`field`、`input`、`textarea`、`label`、`separator`、`alert`。
 - F-02.04：剧集列表与统一状态表达。`generationStatusSchema` 进 `packages/contracts`，`GenerationStatusBadge` 进 `packages/ui`（Badge 补了 `success`/`warning`/`info` 三个语义 Variant）。Creator Home 现在按 `episodes` 长度在列表与空状态之间切换，数据来自 `apps/web/lib/prototype-episodes.ts`（占位，接 API 时删掉）。
@@ -26,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
 
-`packages/ui` 目前有 Token、主题、十二个注册表组件与 `GenerationStatusBadge`。向导只有脚本步骤有表单，其余四步只展示说明。Studio 只做到浏览：**Timeline、镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口都还不存在**。§12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**，剧集列表的行暂时不可点击。§12.5 的 Credit Cost 组件也还没有 —— 动画步骤的积分预估与确认是独立切片。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
+`packages/ui` 目前有 Token、主题、十二个注册表组件与 `GenerationStatusBadge`。向导只有脚本步骤有表单，其余四步只展示说明。Studio 只做到浏览：**Timeline、镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口都还不存在**。§12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**，剧集列表的行暂时不可点击。余额与预估目前是 `apps/web/lib/prototype-estimate.ts` 的占位数据；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
 
 这意味着：
 
