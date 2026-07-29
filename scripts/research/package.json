@@ -1,0 +1,25 @@
+{
+  "name": "@plotpop/research-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off F-00 experiment harness. Not a runtime package: nothing in apps/ or packages/ may depend on it.",
+  "scripts": {
+    "generate": "tsx --env-file-if-exists=.env.research src/cli/generate.ts",
+    "review": "tsx src/cli/review.ts",
+    "report": "tsx src/cli/report.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

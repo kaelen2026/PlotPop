@@ -1,3 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  # Named exactly, not `scripts/*`: this is throwaway F-00 experiment code that
+  # needs the test runner to reach it, not an invitation to grow a second tier of
+  # shared packages.
+  - scripts/research
