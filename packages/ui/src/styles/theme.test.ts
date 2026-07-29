@@ -332,7 +332,7 @@ describe("theme tokens", () => {
       expect(primitives.has(`--pp-duration-${step}`)).toBe(true);
       expect(themeCss).toContain(`@utility duration-${step} {`);
     }
-    for (const stroke of ["hairline", "ink", "ink-bold"]) {
+    for (const stroke of ["hairline", "hairline-b", "ink", "ink-bold"]) {
       expect(themeCss).toContain(`@utility stroke-${stroke} {`);
     }
   });
