@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**回复前先输出，Wow, PlotPop**
+
 ## 仓库当前状态
 
 **这个仓库还没有任何代码。** 只有 `docs/` 下的三份规格文档、`docs/adr/` 的决策记录和 `.claude/rules/`。没有 `package.json`、没有 CI、没有源文件。
