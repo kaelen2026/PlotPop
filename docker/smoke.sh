@@ -5,6 +5,8 @@
 #
 #   docker/smoke.sh plotpop-api:ci api 3001
 #
+# The port is the one the container listens on; the host port is ephemeral.
+#
 # Dependencies are pointed at a closed port on purpose: an image that reports
 # itself ready without ever probing anything is the failure this catches.
 
@@ -19,10 +21,12 @@ image="$1"
 service="$2"
 port="$3"
 container="smoke-${service}-$$"
+report="$(mktemp)"
 dead="127.0.0.1:1"
 
 cleanup() {
   docker rm --force "$container" >/dev/null 2>&1 || true
+  rm -f "$report"
 }
 trap cleanup EXIT
 
@@ -43,8 +47,10 @@ uid="$(docker run --rm --entrypoint sh "$image" -c 'id -u')"
 [ "$uid" != "0" ] || fail "$image runs as root"
 
 echo "==> container starts"
+# An ephemeral host port keeps this runnable while the compose stack holds the
+# published ones.
 docker run --detach --name "$container" --init \
-  --publish "127.0.0.1:${port}:${port}" \
+  --publish "127.0.0.1::${port}" \
   --env "LOG_LEVEL=debug" \
   --env "DATABASE_URL=postgresql://plotpop:smoke@${dead}/plotpop" \
   --env "REDIS_URL=redis://${dead}" \
@@ -53,6 +59,9 @@ docker run --detach --name "$container" --init \
   --env "STORAGE_ACCESS_KEY_ID=smoke" \
   --env "STORAGE_SECRET_ACCESS_KEY=smoke" \
   "$image" >/dev/null
+
+published="$(docker port "$container" "${port}/tcp" | head -n 1)"
+[ -n "$published" ] || fail "container published no port for ${port}/tcp"
 
 echo "==> container reaches its own healthcheck"
 for _ in $(seq 1 30); do
@@ -63,15 +72,15 @@ done
 [ "$state" = "healthy" ] || fail "healthcheck reported '$state'"
 
 echo "==> liveness identifies the service"
-liveness="$(curl --silent --fail "http://127.0.0.1:${port}/health")"
+liveness="$(curl --silent --fail "http://${published}/health")"
 case "$liveness" in
   *"\"service\":\"${service}\""*) ;;
   *) fail "unexpected liveness payload: $liveness" ;;
 esac
 
 echo "==> readiness refuses traffic while dependencies are unreachable"
-status="$(curl --silent --output /tmp/ready.json --write-out '%{http_code}' "http://127.0.0.1:${port}/ready")"
-readiness="$(cat /tmp/ready.json)"
+status="$(curl --silent --output "$report" --write-out '%{http_code}' "http://${published}/ready")"
+readiness="$(cat "$report")"
 [ "$status" = "503" ] || fail "readiness answered $status with $readiness"
 case "$readiness" in
   *'"status":"degraded"'*'"status":"down"'*) ;;
