@@ -1,9 +1,13 @@
+import { parseWorkerEnv } from "@plotpop/config";
 import { createHealthServer } from "./health-server.js";
 
-// Raw env reads stay here only until F-01.02 introduces the Zod-validated
-// config package. Queue consumers arrive with the outbox and queue slice.
-const port = Number(process.env.WORKER_HEALTH_PORT ?? 3002);
+// Parsed before anything binds or connects: a worker missing its queue url
+// should fail its own startup rather than dequeue nothing forever.
+// Queue consumers arrive with the outbox and queue slice.
+const config = parseWorkerEnv();
 
-createHealthServer().listen(port, () => {
-  console.log(JSON.stringify({ level: "info", service: "worker", message: "listening", port }));
+createHealthServer().listen(config.port, () => {
+  console.log(
+    JSON.stringify({ level: "info", service: "worker", message: "listening", port: config.port }),
+  );
 });
