@@ -18,7 +18,8 @@
 - Worker：Node.js + BullMQ。
 - 鉴权：Better Auth。
 - 数据库：PostgreSQL + Drizzle ORM。
-- 契约：Zod + OpenAPI。
+- Schema 与运行时约束：Zod。
+- API 文档：由 Zod 契约生成 OpenAPI。
 - 队列：Redis + BullMQ。
 - 媒体：FFmpeg + FFprobe。
 - 文件：S3 兼容对象存储。
@@ -30,6 +31,18 @@
 - 可观测性：OpenTelemetry、结构化日志和错误追踪。
 
 具体托管供应商在基础设施阶段通过短期验证确定，领域代码不得依赖厂商 SDK 以外的专有能力。
+
+Zod 是应用层 Schema 的唯一可信来源。TypeScript 类型必须通过 `z.infer` 从 Schema 推导，不允许为同一数据结构分别手写运行时 Schema 和 TypeScript Interface。Zod 覆盖：
+
+- API 请求、响应、查询参数和错误载荷。
+- Web 表单与 URL 状态。
+- 环境变量和功能配置。
+- BullMQ 任务载荷与版本。
+- SSE 事件。
+- 模型供应商请求、回调和响应的边界数据。
+- 脚本、场景、镜头和生成参数等 AI 结构化输出。
+
+Zod 负责应用边界的解析与错误表达；PostgreSQL、Drizzle 和数据库迁移仍负责 `NOT NULL`、`UNIQUE`、`CHECK`、外键和事务等持久化约束。不得以 Zod 校验替代数据库完整性约束。
 
 ## 3. 目标仓库结构
 
@@ -79,6 +92,7 @@ PlotPop/
 - 数据库变更有迁移、回滚或前滚说明。
 - 新增状态或任务有失败与恢复路径。
 - 新增付费操作有积分不变量测试。
+- 新增外部输入先定义 Zod Schema，并通过 `z.infer` 推导 TypeScript 类型。
 - 新增外部服务有本地替身或契约测试。
 - 文档和环境变量示例同步更新。
 
@@ -558,7 +572,8 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - 建立请求日志、Trace ID、错误映射和安全响应头。
 - 挂载 `/api/v1` 与 `/api/auth`。
 - 配置受控 CORS，并优先使用生产同源代理。
-- 集成 Zod 请求、响应验证和 OpenAPI。
+- 使用共享 Zod Schema 校验请求、响应、查询参数和错误载荷。
+- 从 Zod Schema 生成 OpenAPI，不单独维护重复的 OpenAPI Schema。
 - 建立 Cursor 分页、Revision 和 Idempotency-Key 公共中间件。
 
 ### 8.2 鉴权
@@ -619,7 +634,7 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 ### 10.2 Worker
 
 - 创建独立 AI 与 Media 队列。
-- 建立任务载荷版本和运行时校验。
+- 使用带判别字段的 Zod Schema 定义任务载荷版本，并在生产者与消费者两端校验。
 - 实现任务领取、心跳、进度、完成、失败与取消。
 - 实现指数退避、随机抖动和错误分类。
 - 实现优雅停机，避免部署时丢失活跃任务。
