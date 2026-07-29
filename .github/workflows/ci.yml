@@ -54,3 +54,35 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  # Runs beside the quality gates rather than after them: an image that cannot
+  # start is worth knowing about in the same minute as a failing test.
+  images:
+    name: Container image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One service failing should not hide the state of the other.
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            port: 3001
+          - service: worker
+            port: 3002
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/${{ matrix.service }}.Dockerfile
+          # Loaded into the local daemon instead of pushed: this job proves the
+          # image runs, it does not publish anything.
+          load: true
+          tags: plotpop-${{ matrix.service }}:ci
+
+      - name: Start and health-check
+        run: docker/smoke.sh plotpop-${{ matrix.service }}:ci ${{ matrix.service }} ${{ matrix.port }}
