@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc --build",
     "start": "node dist/index.js",
     "typecheck": "tsc --build && tsc --project tsconfig.test.json",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
+    "@plotpop/config": "workspace:*",
     "@plotpop/contracts": "workspace:*",
     "hono": "^4.12.32"
   }
