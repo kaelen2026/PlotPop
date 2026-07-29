@@ -166,5 +166,6 @@ packages/     auth api-client config contracts db domain observability providers
 | `docs/design-system.md` | Web 视觉与交互的唯一依据 |
 | `docs/adr/` | 八条架构决策，每条含被否备选与重审触发条件 |
 | `.claude/rules/workflow.md` | 分支、worktree、垂直拆分、commit 与 PR 规则 |
+| `.claude/rules/tdd.md` | 红绿重构、哪些行为必须测试先行、测试层次与 mock 边界 |
 
 文档为中文，产品 UI 文案为英文。
