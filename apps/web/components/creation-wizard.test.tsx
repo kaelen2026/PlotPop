@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { EPISODE_SCRIPT_MIN_LENGTH } from "@plotpop/contracts";
+import { type CreditEstimate, EPISODE_SCRIPT_MIN_LENGTH } from "@plotpop/contracts";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -19,6 +19,22 @@ import { stubBrowserEnvironment } from "@/test/browser-environment";
  */
 
 const script = "Rooftop. Night. ".repeat(Math.ceil(EPISODE_SCRIPT_MIN_LENGTH / 16));
+
+function estimate(overrides: Partial<CreditEstimate> = {}): CreditEstimate {
+  return { minCredits: 320, maxCredits: 480, balanceCredits: 1200, ...overrides };
+}
+
+function renderWizard(overrides: Partial<CreditEstimate> = {}) {
+  return render(<CreationWizard estimate={estimate(overrides)} />);
+}
+
+async function walkToAnimate() {
+  await userEvent.type(titleField(), "Rooftop Confession");
+  await userEvent.type(scriptField(), script);
+  for (const _step of ["script", "cast", "storyboard"]) {
+    await userEvent.click(continueButton());
+  }
+}
 
 function stepItems() {
   // Scoped to the step list on purpose: the error summary is a list too, and an
@@ -51,7 +67,7 @@ afterEach(cleanup);
 
 describe("creation wizard", () => {
   it("shows all five steps and marks the first as current", () => {
-    render(<CreationWizard />);
+    renderWizard();
 
     const steps = stepItems();
     expect(steps).toHaveLength(CREATION_STEPS.length);
@@ -62,7 +78,7 @@ describe("creation wizard", () => {
   });
 
   it("refuses an empty submission and says why, per field and in a summary", async () => {
-    render(<CreationWizard />);
+    renderWizard();
 
     await userEvent.click(continueButton());
 
@@ -89,7 +105,7 @@ describe("creation wizard", () => {
     // The registry's FieldError is a live region on its own, which would make a
     // two field failure speak three times. The summary is the one announcement,
     // and the field messages are reached through `aria-describedby`.
-    render(<CreationWizard />);
+    renderWizard();
 
     await userEvent.click(continueButton());
 
@@ -99,7 +115,7 @@ describe("creation wizard", () => {
   it("moves focus to the summary so the failure is not missed", async () => {
     // §15: a state change has to be perceivable. Leaving focus on a submit button
     // that did nothing is how a keyboard user gets stuck.
-    render(<CreationWizard />);
+    renderWizard();
 
     await userEvent.click(continueButton());
 
@@ -107,7 +123,7 @@ describe("creation wizard", () => {
   });
 
   it("marks the invalid field group so the label and message travel together", async () => {
-    render(<CreationWizard />);
+    renderWizard();
 
     await userEvent.click(continueButton());
 
@@ -117,7 +133,7 @@ describe("creation wizard", () => {
   it("names the field's message as its description", async () => {
     // §15: the message has to reach a screen reader through the control, not only
     // by sitting next to it on screen.
-    render(<CreationWizard />);
+    renderWizard();
 
     await userEvent.click(continueButton());
 
@@ -129,7 +145,7 @@ describe("creation wizard", () => {
   });
 
   it("clears the errors and advances once the draft is valid", async () => {
-    render(<CreationWizard />);
+    renderWizard();
 
     await completeScriptStep();
 
@@ -143,7 +159,7 @@ describe("creation wizard", () => {
   it("keeps what was typed when the user steps back", async () => {
     // A wizard that forgets the script the moment you look at the next step is
     // worse than no wizard.
-    render(<CreationWizard />);
+    renderWizard();
 
     await completeScriptStep();
     await userEvent.click(screen.getByRole("button", { name: messages.wizard.back }));
@@ -153,19 +169,61 @@ describe("creation wizard", () => {
   });
 
   it("offers no way past the last step", async () => {
-    render(<CreationWizard />);
+    renderWizard();
 
-    await completeScriptStep();
-    for (let step = 2; step < CREATION_STEPS.length; step += 1) {
-      await userEvent.click(continueButton());
-    }
+    await walkToAnimate();
+    await userEvent.click(screen.getByRole("button", { name: messages.wizard.animate.confirm }));
 
     expect(stepItems().at(-1)).toHaveAttribute("aria-current", "step");
     expect(screen.queryByRole("button", { name: messages.wizard.continue })).toBeNull();
+    expect(screen.queryByRole("button", { name: messages.wizard.animate.confirm })).toBeNull();
+  });
+
+  describe("the animate step", () => {
+    it("shows the estimate and the balance before anything is generated", async () => {
+      // §10: a paid generation must show its estimate and be confirmed first.
+      renderWizard();
+      await walkToAnimate();
+
+      expect(screen.getByText(messages.creditCost.estimateLabel)).toBeInTheDocument();
+      expect(screen.getByText(messages.creditCost.balanceLabel)).toBeInTheDocument();
+      expect(screen.getByText("320")).toBeInTheDocument();
+      expect(screen.getByText("480")).toBeInTheDocument();
+    });
+
+    it("asks for the cost to be confirmed rather than just continuing", async () => {
+      renderWizard();
+      await walkToAnimate();
+
+      expect(screen.queryByRole("button", { name: messages.wizard.continue })).toBeNull();
+      expect(screen.getByRole("button", { name: messages.wizard.animate.confirm })).toBeEnabled();
+    });
+
+    it("refuses to generate when the balance does not cover the estimate", async () => {
+      // The upper bound is what matters: starting a generation that cannot finish
+      // is worse than not starting it.
+      renderWizard({ balanceCredits: 400 });
+      await walkToAnimate();
+
+      expect(screen.getByText(messages.creditCost.insufficient)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: messages.wizard.animate.blocked })).toBeDisabled();
+    });
+
+    it("asks again when the quote changed since it was confirmed", async () => {
+      // ADR-005: a confirmed ceiling is not a licence for a dearer route.
+      renderWizard({ changeReason: "estimate_increased" });
+      await walkToAnimate();
+
+      expect(screen.getByText(messages.creditCost.reconfirm)).toBeInTheDocument();
+      expect(
+        screen.getByText(messages.creditCost.changeReasons.estimate_increased),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: messages.wizard.animate.reconfirm })).toBeEnabled();
+    });
   });
 
   it("offers no way back from the first step", () => {
-    render(<CreationWizard />);
+    renderWizard();
 
     expect(screen.queryByRole("button", { name: messages.wizard.back })).toBeNull();
   });
