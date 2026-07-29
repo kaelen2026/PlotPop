@@ -27,8 +27,11 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@next/env": "^16.2.12",
+    "@plotpop/config": "workspace:*",
     "@plotpop/contracts": "workspace:*",
     "@plotpop/ui": "workspace:*",
+    "better-auth": "^1.6.25",
     "lucide-react": "^1.27.0",
     "next": "^16.2.12",
     "react": "^19.2.8",

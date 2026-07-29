@@ -25,18 +25,25 @@ export function createApiAuthService({ db, logger, ...options }: ApiAuthOptions)
      * §19: a signed-up user has to land somewhere they can work, so the default
      * workspace and its credit account are created here, inside sign-up.
      *
-     * `provisionDefaultWorkspace` is idempotent, which is what makes a retried or
-     * concurrent sign-up safe. A failure is allowed to fail the sign-up: an
-     * account with nowhere to work is worse than a sign-up the user can retry.
+     * The failure is logged rather than raised. Better Auth runs this hook after
+     * the user row is committed, not inside its transaction, so throwing would
+     * answer the sign-up with an error while leaving the account in place — and the
+     * retry would then be refused as an address already in use. The workspace route
+     * provisions on first read for exactly this case, so the account recovers on
+     * its own and this is a warning about a slow database, not a lost user.
      */
     onUserCreated: async (user) => {
-      const provisioned = await provisionDefaultWorkspace(db, {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-      });
+      try {
+        const provisioned = await provisionDefaultWorkspace(db, {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+        });
 
-      logger.info("workspace provisioned", { workspaceId: provisioned.id });
+        logger.info("workspace provisioned", { workspaceId: provisioned.id, at: "sign_up" });
+      } catch (error) {
+        logger.error("workspace provisioning deferred to first read", { userId: user.id, error });
+      }
     },
   });
 }

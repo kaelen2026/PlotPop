@@ -1,3 +1,4 @@
+import { workspaceSchema } from "@plotpop/contracts";
 import { listWorkspacesForUser } from "@plotpop/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ApiHarness, createApiHarness, signUp, TEST_PASSWORD } from "./testing/harness.js";
@@ -67,6 +68,33 @@ describe("provisioning on sign up", () => {
     });
 
     expect(signIn.status).toBe(200);
+    expect(await listWorkspacesForUser(harness.db, userId)).toHaveLength(1);
+  });
+
+  /*
+   * Better Auth commits the user row and then runs its create hook, so a database
+   * failure during sign-up leaves an account with nowhere to work — and a second
+   * sign-up is refused as an address already in use. The first authenticated read
+   * closes that gap, which is checked here by deleting the workspace out from under a
+   * signed-up account.
+   */
+  it("provisions on first read when sign up left the account without a workspace", async () => {
+    const user = await signUp(harness, "orphan@plotpop.test");
+    const userId = await userIdFor("orphan@plotpop.test");
+    await harness.db.$client.query("delete from workspace where owner_user_id = $1", [userId]);
+    expect(await listWorkspacesForUser(harness.db, userId)).toHaveLength(0);
+
+    const first = await harness.app.request("/api/v1/workspaces/current", {
+      headers: { cookie: user.cookie },
+    });
+    const second = await harness.app.request("/api/v1/workspaces/current", {
+      headers: { cookie: user.cookie },
+    });
+
+    expect(first.status).toBe(200);
+    expect(workspaceSchema.parse(await first.json()).id).toBe(
+      workspaceSchema.parse(await second.json()).id,
+    );
     expect(await listWorkspacesForUser(harness.db, userId)).toHaveLength(1);
   });
 

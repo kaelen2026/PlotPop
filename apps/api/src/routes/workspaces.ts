@@ -5,6 +5,7 @@ import {
   findPersonalWorkspace,
   findWorkspaceForMember,
   listWorkspacesForUser,
+  provisionDefaultWorkspace,
   type WorkspaceRecord,
 } from "@plotpop/db";
 import { Hono } from "hono";
@@ -50,15 +51,27 @@ export function createWorkspaceRoutes({ db, auth }: WorkspaceRouteDependencies) 
        * try to read it as an id.
        */
       .get("/current", async (c) => {
-        const personal = await findPersonalWorkspace(db, c.var.user.id);
+        const user = c.var.user;
+        const personal = await findPersonalWorkspace(db, user.id);
 
-        if (personal === null) {
-          // Provisioning runs inside sign-up (§19), so this means a user exists
-          // without the workspace that sign-up owes them.
-          return c.json(notFound(), 404);
-        }
+        /*
+         * Provisioned here when it is missing, not just at sign-up.
+         *
+         * Better Auth commits the user row before running its create hook, so a
+         * database hiccup during sign-up leaves an account with nowhere to work and
+         * no second sign-up to fix it. Since provisioning is idempotent, the read
+         * path can close that gap itself, and the same call also covers accounts
+         * created by anything other than the email sign-up route.
+         */
+        const workspace =
+          personal ??
+          (await provisionDefaultWorkspace(db, {
+            userId: user.id,
+            name: user.name,
+            email: user.email,
+          }));
 
-        return c.json(toPayload(personal), 200);
+        return c.json(toPayload(workspace), 200);
       })
       .get("/:workspaceId", async (c) => {
         // A malformed id is answered like an unknown one. Handing it to Postgres as
