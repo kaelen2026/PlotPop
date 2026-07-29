@@ -6,6 +6,10 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "./tsconfig.json" }]
+  "include": ["src/**/*.ts", "vitest.config.ts", "../../tooling/vitest/*.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    }
+  ]
 }
