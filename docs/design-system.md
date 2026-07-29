@@ -137,54 +137,112 @@ Component Token 数量必须受控，不得为单个页面创建一次性 Token�
 
 ## 6. 色彩语义
 
-必须定义并使用以下语义变量：
+必须定义并使用以下语义变量。取值为 sRGB Hex，Light 与 Dark 逐一对应。
 
-```text
-background
-foreground
-surface
-surface-raised
-surface-sunken
-card
-card-foreground
-popover
-popover-foreground
-primary
-primary-foreground
-secondary
-secondary-foreground
-accent
-accent-foreground
-muted
-muted-foreground
-border
-input
-ring
-destructive
-destructive-foreground
-success
-success-foreground
-warning
-warning-foreground
-info
-info-foreground
-preview
-preview-foreground
-```
+业务代码只消费变量名，不得引用本节的字面值 —— 本节是 Token 的定义处，不是可复制的调色板。
 
-### 6.1 品牌扩展色
+### 6.1 表面与文字
 
-品牌扩展色包括：
+| 变量 | Light | Dark | 用途 |
+|---|---|---|---|
+| `background` | `#FFF8F0` | `#12101C` | 页面 Canvas。Light 为暖白，Dark 为深紫黑 |
+| `foreground` | `#1A1725` | `#F5F0EA` | 正文。Light 为带紫调的近墨黑，Dark 为暖白 |
+| `surface` | `#FFFDFA` | `#1A1728` | Canvas 之上的基础表面 |
+| `surface-raised` | `#FFFFFF` | `#241F35` | 抬升表面，用于卡片与浮起区域 |
+| `surface-sunken` | `#F5EDE1` | `#0D0B14` | 下沉表面，用于内嵌区与轨道槽 |
+| `card` | `#FFFFFF` | `#1A1728` | Card 背景 |
+| `card-foreground` | `#1A1725` | `#F5F0EA` | Card 文字 |
+| `popover` | `#FFFFFF` | `#241F35` | 弹层背景 |
+| `popover-foreground` | `#1A1725` | `#F5F0EA` | 弹层文字 |
 
-- `brand-pink`
-- `brand-blue`
-- `brand-lime`
-- `brand-yellow`
-- `brand-ink`
+Dark 的三级表面构成 `#0D0B14 → #1A1728 → #241F35` 的抬升阶梯，层级依靠表面差与 Border 表达，不依靠投影（§5.4）。
+
+### 6.2 交互色
+
+| 变量 | Light | Dark | 用途 |
+|---|---|---|---|
+| `primary` | `#D6115F` | `#FF4D8D` | 主要操作填充，取品牌粉 |
+| `primary-foreground` | `#FFFFFF` | `#25060F` | 主按钮文字。Dark 下为深色文字压在亮粉上 |
+| `secondary` | `#F1E9DE` | `#241F35` | 次要操作填充 |
+| `secondary-foreground` | `#2A2438` | `#EDE7F5` | 次要按钮文字 |
+| `accent` | `#1B49E5` | `#7FA0FF` | 强调与选中，取品牌蓝 |
+| `accent-foreground` | `#FFFFFF` | `#0A1030` | 强调面上的文字 |
+| `muted` | `#F3EDE4` | `#241F35` | 低强度填充 |
+| `muted-foreground` | `#5C5470` | `#A79DBA` | 次要文字 |
+
+Dark 的 `primary` 与 `accent` 提亮并改用深色前景，符合 §5.4「大面积品牌色转为低亮度染色表面，高亮品牌色只用于文字、图标、焦点和小面积强调」。
+
+### 6.3 边框与焦点
+
+| 变量 | Light | Dark | 用途 |
+|---|---|---|---|
+| `border` | `#E3D5C1` | `#322B47` | 装饰性分隔线与表面描边 |
+| `input` | `#8A7F6D` | `#756A99` | 输入控件轮廓 |
+| `ring` | `#1B49E5` | `#7FA0FF` | 焦点 Ring |
+
+`border` 与 `input` 必须是两个变量，不得互相替代：`border` 只承担装饰分隔，`input` 用于标识输入控件边界，受 WCAG 2.2 SC 1.4.11 的 3:1 非文字对比度约束。把输入框描边降级成 `border` 会直接违反 §15。
+
+### 6.4 状态色
+
+| 变量 | Light | Dark | 用途 |
+|---|---|---|---|
+| `destructive` | `#C81E2E` | `#FF6B6B` | 危险操作与失败 |
+| `destructive-foreground` | `#FFFFFF` | `#2B0808` | 危险面上的文字 |
+| `success` | `#0E7A3D` | `#3DD68C` | 完成 |
+| `success-foreground` | `#FFFFFF` | `#042413` | 完成面上的文字 |
+| `warning` | `#8A5A00` | `#FFC93C` | 需要注意与待审阅 |
+| `warning-foreground` | `#FFFFFF` | `#2B1D00` | 注意面上的文字 |
+| `info` | `#1B5FCC` | `#7FA0FF` | 中性信息与进行中 |
+| `info-foreground` | `#FFFFFF` | `#0A1030` | 信息面上的文字 |
+
+### 6.5 媒体
+
+| 变量 | Light | Dark | 用途 |
+|---|---|---|---|
+| `preview` | `#14131A` | `#0F0E14` | 视频预览与时间线媒体区背景 |
+| `preview-foreground` | `#F5F3F7` | `#F5F3F7` | 覆盖在预览之上的文字与控件 |
+
+`preview` 在两种主题下都保持中性深色（§5.4、§13），避免主题色影响用户对成片画面的判断。
+
+### 6.6 对比度基线
+
+上表所有取值已按 WCAG 2.2 AA 逐对验证，Light 与 Dark 共 62 组，全部通过。基线为：
+
+- 正文与前景 / 背景组合：≥ 4.5:1。
+- 输入轮廓、焦点 Ring、状态填充边缘对 Canvas：≥ 3:1（SC 1.4.11）。
+- 品牌色作为文字使用时：≥ 4.5:1。
+
+实测的最低余量集中在三处，修改这些值时必须重新验证：
+
+| 组合 | 实测 | 下限 |
+|---|---|---|
+| Light `input` on `surface` | 3.88 | 3.0 |
+| Dark `input` on `surface` | 3.57 | 3.0 |
+| Light `primary-foreground` on `primary` | 5.12 | 4.5 |
+
+修改任何色值必须重新跑完整验证，不接受只核对被改动的那一对 —— 表面阶梯与状态色共用 Canvas 作为参照，改一个背景会同时影响十余组。
+
+§18 要求 CI 执行这项检查。在 F-01 建立 Vitest 之前，该验证以一次性脚本执行；本节记录的实测值是它的输出，验证进入 runner 后以测试为准。
+
+### 6.7 品牌扩展色
+
+| 变量 | Light | Dark | Light 用法 |
+|---|---|---|---|
+| `brand-pink` | `#D6115F` | `#FF6BA3` | 文字与填充 |
+| `brand-blue` | `#1B49E5` | `#8FB0FF` | 文字与填充 |
+| `brand-lime` | `#7ED321` | `#9BE33D` | **仅填充** |
+| `brand-yellow` | `#FFC93C` | `#FFD466` | **仅填充** |
+| `brand-ink` | `#14121C` | `#F5F0EA` | 漫画式描边与填充上的文字 |
+
+Light 的 `brand-lime` 与 `brand-yellow` 是**仅填充**色：它们对暖白 Canvas 的边缘对比度分别只有 1.78:1 和 1.55:1，达不到 3:1，因此这两种填充**必须**带 `brand-ink` 描边，由描边而不是填充本身提供可识别边界。这正是 §9.2 要求品牌卡片与主要 CTA 使用漫画式强调描边的对比度依据。两者承载 `brand-ink` 文字分别为 9.91:1 和 12.07:1。
+
+保留鲜亮的 Lime 与 Yellow 而不是压暗成合规的深绿、深琥珀，是为了不牺牲 Pop Anime 的视觉语言；代价是这两个色值在 Light 下不能用作文字，也不能脱离描边单独作为填充使用。
+
+Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
 
 品牌色不得直接表示成功、失败或警告。业务状态使用对应语义状态 Token。
 
-### 6.2 状态表达
+### 6.8 状态表达
 
 每个状态必须至少同时具备两种表达：
 
