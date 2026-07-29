@@ -17,12 +17,24 @@ export const messages = {
   },
   creatorHome: {
     title: "Creator Home",
+    episodes: {
+      heading: "Episodes",
+    },
     empty: {
       title: "No episodes yet",
       description:
         "Bring a script and a cast. PlotPop turns them into a 5 to 10 minute episode you can review shot by shot.",
       action: "Create episode",
     },
+  },
+  /** §12.4: the labels for the contract's task states. Pages never invent one. */
+  generationStatus: {
+    draft: "Draft",
+    queued: "Queued",
+    generating: "Generating",
+    needs_review: "Needs review",
+    completed: "Completed",
+    failed: "Failed",
   },
   landing: {
     openCreatorHome: "Open Creator Home",

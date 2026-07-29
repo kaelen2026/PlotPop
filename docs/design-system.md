@@ -544,24 +544,37 @@ Scene Card 和 Shot Card 通过正式 Variant 扩展，不通过页面 Class 覆
 
 ### 12.4 Generation Status
 
-统一状态：
+统一状态与视觉定义。状态值是 `packages/contracts` 的 `generationStatusSchema`，**不是** UI 概念 —— API 写它、Worker 改它、Web 只渲染它，所以三处必须引用同一个 Schema。
 
-- Draft。
-- Queued。
-- Generating。
-- Needs Review。
-- Completed。
-- Failed。
+| 状态值 | Label | Icon | Semantic Color / Badge Variant |
+|---|---|---|---|
+| `draft` | Draft | `PencilLine` | `secondary` |
+| `queued` | Queued | `Clock` | `info` |
+| `generating` | Generating | `LoaderCircle`（旋转） | `info` |
+| `needs_review` | Needs review | `Eye` | `warning` |
+| `completed` | Completed | `CircleCheck` | `success` |
+| `failed` | Failed | `CircleX` | `destructive` |
 
-每个状态定义：
+`queued` 与 `generating` 共用 `info`（§6.4：中性信息与进行中），两者靠 Label 与 Icon 区分。这是允许的：§6.8 要求每个状态至少两种表达，而这里有三种。反过来不成立 —— 任何只靠颜色区分的状态表达都算缺陷。
 
-- Label。
-- Icon。
-- Semantic Color。
-- 可用操作。
-- 是否允许取消、重试或编辑。
+`generating` 的旋转图标在 `prefers-reduced-motion` 下保留，因为它承载「仍在进行」这一必要信息（§10）。
+
+可用操作：
+
+| 状态 | 可用操作 | 取消 | 重试 | 编辑 |
+|---|---|---|---|---|
+| `draft` | 继续编辑、开始生成 | — | — | 允许 |
+| `queued` | 取消 | 允许 | — | — |
+| `generating` | 取消 | 允许 | — | — |
+| `needs_review` | 批准、重做该镜头 | — | 允许（重做） | 允许 |
+| `completed` | 查看、导出、重做 | — | — | 允许（产生新版本，旧版本保留，见 ADR-006） |
+| `failed` | 重试、修改输入 | — | 允许 | 允许 |
+
+`failed` 的重试是**用户手动**动作，与自动重试无关：无效输入与内容审核拒绝不自动重试，用户必须先修改输入再重试。
 
 页面不得自行创造状态名称或颜色。
+
+**实现状态**：Label、Icon 与 Semantic Color 已实现为 `packages/ui` 的 `GenerationStatusBadge`。上表的操作入口尚未实现，随生成动作切片建立。
 
 ### 12.5 Credit Cost
 
