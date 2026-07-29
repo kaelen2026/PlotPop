@@ -14,7 +14,7 @@
 
 - Monorepo：pnpm Workspace + Turborepo。
 - Web：Next.js + TypeScript + Tailwind CSS + shadcn/ui。
-- API：Hono + `@hono/node-server`。
+- API：Hono + `@hono/node-server` + Hono RPC。
 - Worker：Node.js + BullMQ。
 - 鉴权：Better Auth。
 - 数据库：PostgreSQL + Drizzle ORM。
@@ -35,6 +35,7 @@
 Zod 是应用层 Schema 的唯一可信来源。TypeScript 类型必须通过 `z.infer` 从 Schema 推导，不允许为同一数据结构分别手写运行时 Schema 和 TypeScript Interface。Zod 覆盖：
 
 - API 请求、响应、查询参数和错误载荷。
+- Hono RPC 路由输入、输出和状态码。
 - Web 表单与 URL 状态。
 - 环境变量和功能配置。
 - BullMQ 任务载荷与版本。
@@ -43,6 +44,8 @@ Zod 是应用层 Schema 的唯一可信来源。TypeScript 类型必须通过 `z
 - 脚本、场景、镜头和生成参数等 AI 结构化输出。
 
 Zod 负责应用边界的解析与错误表达；PostgreSQL、Drizzle 和数据库迁移仍负责 `NOT NULL`、`UNIQUE`、`CHECK`、外键和事务等持久化约束。不得以 Zod 校验替代数据库完整性约束。
+
+Web 与内部 TypeScript 客户端优先使用 Hono RPC。RPC 复用相同的 HTTP 路由，不创建第二套接口。OpenAPI 继续用于外部客户端、调试工具、契约审阅和非 TypeScript 集成。
 
 ## 3. 目标仓库结构
 
@@ -55,6 +58,7 @@ PlotPop/
     worker/
   packages/
     auth/
+    api-client/
     config/
     contracts/
     db/
@@ -149,6 +153,7 @@ PlotPop/
 
 - pnpm Workspace、Turborepo 和共享配置。
 - Next.js、Hono、Worker 最小应用。
+- Hono RPC `AppType` 与预编译类型客户端包。
 - Tailwind CSS 与 shadcn/ui Monorepo 配置。
 - Dockerfile 与 Docker Compose。
 - PostgreSQL、Redis 和 S3 兼容本地服务。
@@ -214,6 +219,7 @@ PlotPop/
 - Series、Character、Character Version、Asset Schema。
 - Series 与角色领域规则和版本规则。
 - Hono CRUD、Revision 冲突和 Workspace 权限。
+- Web 通过 Hono RPC Client 调用 Series 与角色接口。
 - 签名上传、上传确认与 Media Worker 文件验证。
 - Series 与角色 Web 页面。
 - 对象存储、权限、格式和重复确认测试。
@@ -592,6 +598,13 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - 配置受控 CORS，并优先使用生产同源代理。
 - 使用共享 Zod Schema 校验请求、响应、查询参数和错误载荷。
 - 从 Zod Schema 生成 OpenAPI，不单独维护重复的 OpenAPI Schema。
+- 所有 RPC 路由必须链式定义，并从组合后的 Router 导出 `AppType`。
+- `packages/api-client` 使用 `hc<AppType>` 构建并导出预计算类型客户端，Web 不直接实例化完整服务端类型树。
+- API 与 Client 使用相同 Hono 版本、TypeScript 严格模式和 Project References。
+- 成功与失败响应必须使用 `c.json(payload, status)` 明确状态码，使 RPC 正确推导联合类型。
+- RPC 路由禁止直接使用无法推导结构的 `c.notFound()`；统一返回带稳定错误 Schema 的显式 `404`。
+- 全局错误类型应用到 RPC Client，覆盖 `401`、`403`、`409` 和 `500`。
+- API 路由测试使用 Hono `testClient()`，同时验证运行行为与 RPC 类型推导。
 - 建立 Cursor 分页、Revision 和 Idempotency-Key 公共中间件。
 
 ### 8.2 鉴权
@@ -618,6 +631,8 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 - Revision 冲突返回稳定错误。
 - 重复写请求在相同幂等键下返回同一业务结果。
 - OpenAPI 文档和契约测试通过。
+- Hono RPC Client 可以推导路由输入、成功响应和错误状态，无需手写重复类型。
+- API 路由按领域拆分，IDE 类型检查性能处于可接受范围。
 
 ## 9. 阶段 4：文件与媒体资产
 

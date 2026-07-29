@@ -279,6 +279,7 @@ apps/
 
 packages/
   auth/            Better Auth 配置与服务端鉴权能力
+  api-client/      Hono RPC 预编译类型客户端
   domain/          领域实体、状态机和业务规则
   contracts/       Zod 请求、响应和任务载荷契约
   db/              Drizzle Schema、查询和迁移
@@ -289,7 +290,7 @@ packages/
 技术栈：
 
 - Web：Next.js + TypeScript。
-- API：Hono + `@hono/node-server`。
+- API：Hono + `@hono/node-server` + Hono RPC。
 - Worker：Node.js + TypeScript + BullMQ。
 - 数据库：PostgreSQL + Drizzle ORM。
 - 鉴权：Better Auth。
@@ -313,7 +314,7 @@ packages/
 - 部署到常驻 Node.js 容器，不使用 Edge Runtime。
 - API 前缀为 `/api/v1/*`，Better Auth 路由为 `/api/auth/*`。
 - 负责所有业务写操作、事务和 Outbox 事件。
-- 提供 OpenAPI 文档与类型安全客户端契约。
+- 为 Web 提供 Hono RPC 类型安全客户端，并保留 OpenAPI 文档与外部契约。
 - 通过 Server-Sent Events 推送任务进度，客户端断线后携带事件游标重连，并以轮询作为兜底。
 
 ### 18.3 Worker 边界
@@ -389,13 +390,21 @@ Scene 和 Shot 使用可排序 Rank，调整顺序时不需要重写所有同级
 
 - 所有业务端点使用 `/api/v1` 前缀。
 - 输入、输出和错误结构由共享 Zod Schema 定义。
+- Web 与内部 TypeScript 消费者优先通过 Hono RPC 调用 API。
+- RPC 与 REST/OpenAPI 复用同一组 Hono 路由，不维护第二套业务接口。
+- 组合路由以链式方式注册，并导出 `AppType`。
+- `api-client` 包通过 `hc<AppType>` 生成预编译类型客户端，降低大型路由对 Web IDE 的类型计算压力。
+- API 与 Client 必须使用相同 Hono 版本、TypeScript 严格模式和 Project References。
+- 路由使用明确的 `c.json(payload, status)` 返回成功与错误状态，使客户端正确推导联合响应。
+- `404`、`401`、`403`、`409` 与 `500` 使用统一 Zod Error Schema；RPC 路由不得返回无法推导结构的错误响应。
 - 写操作支持客户端提供的 `Idempotency-Key`。
 - 错误响应包含稳定错误码、可本地化消息 Key、Trace ID 和可恢复动作，不直接暴露内部异常。
 - 列表接口使用 Cursor 分页。
 - 更新接口携带 Revision；版本冲突返回明确的冲突响应。
 - 上传接口先校验 Workspace、用途、文件类型、大小和配额，再签发短时效上传 URL。
 - SSE 事件包含递增游标、Generation Run ID、Task ID、状态、进度和安全的摘要信息。
-- API 契约生成 OpenAPI 文档；鉴权接口文档与业务接口文档可分别展示。
+- 相同 Zod 契约生成 OpenAPI 文档；鉴权接口文档与业务接口文档可分别展示。
+- OpenAPI 面向外部客户端、调试工具和未来非 TypeScript 集成，Hono RPC 面向 Monorepo 内部 Web。
 
 ## 22. Outbox 与任务投递
 
