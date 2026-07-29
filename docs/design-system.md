@@ -50,6 +50,10 @@ Light 与 Dark 均满足 WCAG 2.2 AA。键盘、焦点、动态效果降级和�
 - shadcn/ui 源码统一位于 `packages/ui`。
 - 业务应用不得复制 shadcn/ui 组件源码。
 
+Token 的实现是 `packages/ui/src/styles/theme.css`，`apps/web/app/globals.css` 只负责引入它。Tailwind 没有时长、描边宽度和焦点 Ring 的 Theme 命名空间，所以 §9.2 与 §10 的这几个 Token 以 Utility 形式提供：`duration-instant | fast | normal | slow`、`stroke-hairline | ink | ink-bold`、`focus-ring`。`stroke-ink` 自带 §9.2 的主题差异（Light 用 `brand-ink`，Dark 用 `border`），业务组件因此不需要写 `dark:` 覆盖。
+
+Primitive 层统一使用 `--pp-` 前缀，且不映射成任何 Tailwind Utility，所以业务代码无法引用到基础色阶（§4.1）。
+
 ## 4. Token 架构
 
 设计 Token 分为三层。
@@ -83,6 +87,8 @@ Light 与 Dark 均满足 WCAG 2.2 AA。键盘、焦点、动态效果降级和�
 - Chart 与媒体背景。
 
 业务组件优先使用 Semantic Token。
+
+Chart Token 尚未定义取值：第一个图表出现时按 §17 走例外流程补齐，并纳入 §6.6 的对比度验证。媒体背景见 §6.5。
 
 ### 4.3 Component Token
 
@@ -206,23 +212,26 @@ Dark 的 `primary` 与 `accent` 提亮并改用深色前景，符合 §5.4「大
 
 ### 6.6 对比度基线
 
-上表所有取值已按 WCAG 2.2 AA 逐对验证，Light 与 Dark 共 62 组，全部通过。基线为：
+上表所有取值按 WCAG 2.2 AA 逐对验证，Light 45 组、Dark 49 组，共 94 组全部通过。基线为：
 
 - 正文与前景 / 背景组合：≥ 4.5:1。
 - 输入轮廓、焦点 Ring、状态填充边缘对 Canvas：≥ 3:1（SC 1.4.11）。
 - 品牌色作为文字使用时：≥ 4.5:1。
 
-实测的最低余量集中在三处，修改这些值时必须重新验证：
+实测的最低余量集中在以下几处，修改这些值时必须重新验证：
 
 | 组合 | 实测 | 下限 |
 |---|---|---|
-| Light `input` on `surface` | 3.88 | 3.0 |
+| Dark `input` on `surface-raised` | 3.23 | 3.0 |
 | Dark `input` on `surface` | 3.57 | 3.0 |
+| Light `brand-pink` on `background` | 4.86 | 4.5 |
 | Light `primary-foreground` on `primary` | 5.12 | 4.5 |
 
 修改任何色值必须重新跑完整验证，不接受只核对被改动的那一对 —— 表面阶梯与状态色共用 Canvas 作为参照，改一个背景会同时影响十余组。
 
-§18 要求 CI 执行这项检查。在 F-01 建立 Vitest 之前，该验证以一次性脚本执行；本节记录的实测值是它的输出，验证进入 runner 后以测试为准。
+这项验证由 `packages/ui/src/styles/theme.test.ts` 执行，它直接解析 `theme.css` 并逐对计算，因此没有第二份色值表可以与实现脱节。**该测试是本节数值的权威来源**；表里的数字是它的输出，改色值后以测试结果为准并回填本表。§18 要求的 CI 执行由 `pnpm test:coverage` 满足。
+
+同一份测试还钉住三条只能在 Token 层表达的规则：Light 与 Dark 的语义 Token 必须一一对应（缺一个不会构建失败，只会渲染成不可见元素）、`shadow-pop-*` 在 Dark 解析为 `none`、以及 `stroke-ink` 的颜色在 Dark 换成 `border`。
 
 ### 6.7 品牌扩展色
 
@@ -238,7 +247,7 @@ Light 的 `brand-lime` 与 `brand-yellow` 是**仅填充**色：它们对暖白 
 
 保留鲜亮的 Lime 与 Yellow 而不是压暗成合规的深绿、深琥珀，是为了不牺牲 Pop Anime 的视觉语言；代价是这两个色值在 Light 下不能用作文字，也不能脱离描边单独作为填充使用。
 
-Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。
+Dark 下四个品牌色均可作为文字使用（最低 7.06:1）。注意 `brand-ink` 在 Dark 是暖白而不是墨黑，所以「`brand-ink` 文字压在 Lime / Yellow 填充上」这一组合只存在于 Light；Dark 按 §5.4 把这两个亮色留给文字、图标与小面积强调，不用作大面积填充。
 
 品牌色不得直接表示成功、失败或警告。业务状态使用对应语义状态 Token。
 

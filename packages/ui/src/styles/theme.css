@@ -1,0 +1,381 @@
+@import "tailwindcss";
+
+/*
+ * PlotPop design tokens — the implementation of `docs/design-system.md`.
+ *
+ * Layers, per §4: primitives carry the raw scales and are never referenced by
+ * business code; semantic tokens name what a value means; component tokens are
+ * added only when a semantic token cannot express a reusable surface.
+ *
+ * Every colour appears exactly once, in the primitive block. `theme.test.ts`
+ * resolves the chains and re-verifies the WCAG 2.2 AA contract on every run, so
+ * changing one value cannot quietly break the pairs that share a Canvas (§6.6).
+ */
+
+/* §3: the theme is carried by a root attribute, not a class. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Primitive tokens (§4.1). Named for the Pop Anime palette in §5.3 and §5.4. */
+:root {
+  --pp-white: #ffffff;
+  --pp-cream-50: #fffdfa;
+  --pp-cream-100: #fff8f0;
+  --pp-cream-200: #f5ede1;
+  --pp-sand-100: #f3ede4;
+  --pp-sand-200: #f1e9de;
+  --pp-sand-300: #e3d5c1;
+  --pp-sand-600: #8a7f6d;
+  --pp-ink-950: #14121c;
+  --pp-ink-900: #1a1725;
+  --pp-ink-800: #2a2438;
+  --pp-plum-950: #0d0b14;
+  --pp-plum-900: #12101c;
+  --pp-plum-850: #1a1728;
+  --pp-plum-800: #241f35;
+  --pp-plum-700: #322b47;
+  --pp-plum-600: #5c5470;
+  --pp-plum-500: #756a99;
+  --pp-plum-400: #a79dba;
+  --pp-lilac-100: #ede7f5;
+  --pp-bone-100: #f5f0ea;
+  --pp-pink-950: #25060f;
+  --pp-pink-600: #d6115f;
+  --pp-pink-400: #ff4d8d;
+  --pp-pink-300: #ff6ba3;
+  --pp-blue-950: #0a1030;
+  --pp-blue-600: #1b49e5;
+  --pp-blue-500: #1b5fcc;
+  --pp-blue-300: #7fa0ff;
+  --pp-blue-200: #8fb0ff;
+  --pp-lime-500: #7ed321;
+  --pp-lime-400: #9be33d;
+  --pp-yellow-950: #2b1d00;
+  --pp-yellow-400: #ffc93c;
+  --pp-yellow-300: #ffd466;
+  --pp-red-950: #2b0808;
+  --pp-red-600: #c81e2e;
+  --pp-red-400: #ff6b6b;
+  --pp-green-950: #042413;
+  --pp-green-700: #0e7a3d;
+  --pp-green-400: #3dd68c;
+  --pp-amber-700: #8a5a00;
+  --pp-screen-950: #0f0e14;
+  --pp-screen-900: #14131a;
+  --pp-screen-50: #f5f3f7;
+
+  /* §10. Tailwind has no duration theme namespace, so these stay primitives
+   * and reach business code through the `duration-*` utilities below. */
+  --pp-duration-instant: 75ms;
+  --pp-duration-fast: 150ms;
+  --pp-duration-normal: 250ms;
+  --pp-duration-slow: 400ms;
+
+  /* §9.2. The focus ring is 2px with a 2px offset in both themes, so that it
+   * stays separate from the comic stroke on branded buttons. */
+  --pp-focus-ring-width: 2px;
+  --pp-focus-ring-offset: 2px;
+}
+
+/* Semantic tokens — Light (§6, §5.3). Also the no-script default. */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: var(--pp-cream-100);
+  --foreground: var(--pp-ink-900);
+  --surface: var(--pp-cream-50);
+  --surface-raised: var(--pp-white);
+  --surface-sunken: var(--pp-cream-200);
+  --card: var(--pp-white);
+  --card-foreground: var(--pp-ink-900);
+  --popover: var(--pp-white);
+  --popover-foreground: var(--pp-ink-900);
+
+  --primary: var(--pp-pink-600);
+  --primary-foreground: var(--pp-white);
+  --secondary: var(--pp-sand-200);
+  --secondary-foreground: var(--pp-ink-800);
+  --accent: var(--pp-blue-600);
+  --accent-foreground: var(--pp-white);
+  --muted: var(--pp-sand-100);
+  --muted-foreground: var(--pp-plum-600);
+
+  --border: var(--pp-sand-300);
+  --input: var(--pp-sand-600);
+  --ring: var(--pp-blue-600);
+
+  --destructive: var(--pp-red-600);
+  --destructive-foreground: var(--pp-white);
+  --success: var(--pp-green-700);
+  --success-foreground: var(--pp-white);
+  --warning: var(--pp-amber-700);
+  --warning-foreground: var(--pp-white);
+  --info: var(--pp-blue-500);
+  --info-foreground: var(--pp-white);
+
+  --preview: var(--pp-screen-900);
+  --preview-foreground: var(--pp-screen-50);
+
+  --brand-pink: var(--pp-pink-600);
+  --brand-blue: var(--pp-blue-600);
+  --brand-lime: var(--pp-lime-500);
+  --brand-yellow: var(--pp-yellow-400);
+  --brand-ink: var(--pp-ink-950);
+
+  /* §9.2: the comic stroke is ink in Light. */
+  --stroke-ink-color: var(--brand-ink);
+
+  /* §9.3: hard, unblurred comic shadows. */
+  --elevation-pop-sm: 2px 2px 0 var(--brand-ink);
+  --elevation-pop-md: 4px 4px 0 var(--brand-ink);
+  --elevation-raised: 0 1px 2px rgb(26 23 37 / 0.08);
+  --elevation-overlay: 0 8px 24px rgb(26 23 37 / 0.12);
+}
+
+/* Semantic tokens — Dark (§6, §5.4). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: var(--pp-plum-900);
+  --foreground: var(--pp-bone-100);
+  --surface: var(--pp-plum-850);
+  --surface-raised: var(--pp-plum-800);
+  --surface-sunken: var(--pp-plum-950);
+  --card: var(--pp-plum-850);
+  --card-foreground: var(--pp-bone-100);
+  --popover: var(--pp-plum-800);
+  --popover-foreground: var(--pp-bone-100);
+
+  --primary: var(--pp-pink-400);
+  --primary-foreground: var(--pp-pink-950);
+  --secondary: var(--pp-plum-800);
+  --secondary-foreground: var(--pp-lilac-100);
+  --accent: var(--pp-blue-300);
+  --accent-foreground: var(--pp-blue-950);
+  --muted: var(--pp-plum-800);
+  --muted-foreground: var(--pp-plum-400);
+
+  --border: var(--pp-plum-700);
+  --input: var(--pp-plum-500);
+  --ring: var(--pp-blue-300);
+
+  --destructive: var(--pp-red-400);
+  --destructive-foreground: var(--pp-red-950);
+  --success: var(--pp-green-400);
+  --success-foreground: var(--pp-green-950);
+  --warning: var(--pp-yellow-400);
+  --warning-foreground: var(--pp-yellow-950);
+  --info: var(--pp-blue-300);
+  --info-foreground: var(--pp-blue-950);
+
+  --preview: var(--pp-screen-950);
+  --preview-foreground: var(--pp-screen-50);
+
+  --brand-pink: var(--pp-pink-300);
+  --brand-blue: var(--pp-blue-200);
+  --brand-lime: var(--pp-lime-400);
+  --brand-yellow: var(--pp-yellow-300);
+  --brand-ink: var(--pp-bone-100);
+
+  /* §9.2: ink strokes become the semantic border in Dark to cut edge noise. */
+  --stroke-ink-color: var(--border);
+
+  /* §9.3: elevation comes from the surface ladder and borders, not shadows. */
+  --elevation-pop-sm: none;
+  --elevation-pop-md: none;
+  --elevation-raised: 0 1px 2px rgb(0 0 0 / 0.32);
+  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 0.44);
+}
+
+/*
+ * `inline` keeps the generated utilities pointing at the semantic variables, so
+ * a utility re-resolves when the root attribute changes instead of baking in the
+ * Light value (§5.1: switching must not reload the page).
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-preview: var(--preview);
+  --color-preview-foreground: var(--preview-foreground);
+
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-lime: var(--brand-lime);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-ink: var(--brand-ink);
+
+  --shadow-pop-sm: var(--elevation-pop-sm);
+  --shadow-pop-md: var(--elevation-pop-md);
+  --shadow-raised: var(--elevation-raised);
+  --shadow-overlay: var(--elevation-overlay);
+}
+
+@theme {
+  /* §7.1. `next/font` self-hosts the families and publishes these variables. */
+  --font-display: var(--font-outfit), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* §7.2. The only permitted type steps; each carries its line height and weight. */
+  --text-display-lg: 3.5rem;
+  --text-display-lg--line-height: 1.05;
+  --text-display-lg--font-weight: 800;
+  --text-display-md: 2.75rem;
+  --text-display-md--line-height: 1.1;
+  --text-display-md--font-weight: 800;
+  --text-display-sm: 2.25rem;
+  --text-display-sm--line-height: 1.15;
+  --text-display-sm--font-weight: 700;
+  --text-heading-lg: 1.875rem;
+  --text-heading-lg--line-height: 1.25;
+  --text-heading-lg--font-weight: 700;
+  --text-heading-md: 1.5rem;
+  --text-heading-md--line-height: 1.3;
+  --text-heading-md--font-weight: 600;
+  --text-heading-sm: 1.25rem;
+  --text-heading-sm--line-height: 1.35;
+  --text-heading-sm--font-weight: 600;
+  --text-heading-xs: 1.125rem;
+  --text-heading-xs--line-height: 1.4;
+  --text-heading-xs--font-weight: 600;
+  --text-body-lg: 1.125rem;
+  --text-body-lg--line-height: 1.6;
+  --text-body-lg--font-weight: 400;
+  --text-body-md: 1rem;
+  --text-body-md--line-height: 1.6;
+  --text-body-md--font-weight: 400;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.55;
+  --text-body-sm--font-weight: 400;
+  --text-label-md: 0.875rem;
+  --text-label-md--line-height: 1.4;
+  --text-label-md--font-weight: 500;
+  --text-label-sm: 0.8125rem;
+  --text-label-sm--line-height: 1.35;
+  --text-label-sm--font-weight: 500;
+  --text-label-xs: 0.75rem;
+  --text-label-xs--line-height: 1.3;
+  --text-label-xs--font-weight: 600;
+  --text-mono-md: 0.875rem;
+  --text-mono-md--line-height: 1.5;
+  --text-mono-md--font-weight: 400;
+  --text-mono-sm: 0.8125rem;
+  --text-mono-sm--line-height: 1.45;
+  --text-mono-sm--font-weight: 400;
+
+  /* §9.1 */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* §8.3. The Episode Studio workspace is deliberately unbounded. */
+  --container-prose: 68ch;
+  --container-form: 40rem;
+  --container-app: 80rem;
+  --container-marketing: 90rem;
+
+  /* §10 */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* §10. Named durations, since Tailwind only ships numeric `duration-*`. */
+@utility duration-instant {
+  transition-duration: var(--pp-duration-instant);
+}
+
+@utility duration-fast {
+  transition-duration: var(--pp-duration-fast);
+}
+
+@utility duration-normal {
+  transition-duration: var(--pp-duration-normal);
+}
+
+@utility duration-slow {
+  transition-duration: var(--pp-duration-slow);
+}
+
+/*
+ * §9.2. The stroke utilities carry the theme rule with them, which is what keeps
+ * `dark:` colour overrides out of business code (§16).
+ */
+@utility stroke-hairline {
+  border-width: 1px;
+  border-color: var(--border);
+}
+
+@utility stroke-ink {
+  border-width: 2px;
+  border-color: var(--stroke-ink-color);
+}
+
+@utility stroke-ink-bold {
+  border-width: 3px;
+  border-color: var(--stroke-ink-color);
+}
+
+/*
+ * §9.2: the focus ring must not be clipped by a stroke or an overflow, so it is
+ * an outline rather than a box shadow.
+ */
+@utility focus-ring {
+  outline: var(--pp-focus-ring-width) solid var(--ring);
+  outline-offset: var(--pp-focus-ring-offset);
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    /* §7.1: tabular figures so credits, timecodes and progress do not jitter. */
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * §10: reduced motion collapses every duration to the instant step. Removing
+ * transforms is a per component decision and stays with the components, because
+ * a blanket `transform: none` would break centring utilities.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --pp-duration-fast: var(--pp-duration-instant);
+    --pp-duration-normal: var(--pp-duration-instant);
+    --pp-duration-slow: var(--pp-duration-instant);
+  }
+}

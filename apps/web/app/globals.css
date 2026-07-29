@@ -1,0 +1,9 @@
+/*
+ * The Web application's only stylesheet entry point. Design tokens live in
+ * `@plotpop/ui`, which is where `docs/design-system.md` is implemented; this file
+ * exists to pull them in and to tell Tailwind where classes are used.
+ */
+@import "@plotpop/ui/styles/theme.css";
+
+@source "../app";
+@source "../../../packages/ui/src";
