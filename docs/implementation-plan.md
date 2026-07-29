@@ -69,6 +69,7 @@ PlotPop/
       styles/
   docs/
     ai-comic-drama-saas-design.md
+    design-system.md
     implementation-plan.md
     adr/
     runbooks/
@@ -94,6 +95,7 @@ PlotPop/
 每个阶段必须满足以下条件才能进入下一阶段：
 
 - 类型检查、Lint 和相关测试通过。
+- 所有 Web 改动通过 `docs/design-system.md` 约束检查；设计系统未定义的视觉值不得进入业务代码。
 - 数据库变更有迁移、回滚或前滚说明。
 - 新增状态或任务有失败与恢复路径。
 - 新增付费操作有积分不变量测试。
@@ -166,6 +168,9 @@ PlotPop/
 **范围：**
 
 - 设计 Token、字体、颜色、描边、投影和状态语义。
+- 将 `docs/design-system.md` 作为视觉实现唯一依据。
+- 实现 System、Light、Dark 三态主题切换和账户、本地偏好规则。
+- 在首次绘制前解析主题，避免闪白与 Hydration 不一致。
 - 使用 Tailwind CSS 语义 Token 实现 Pop Anime 主题，不在业务组件中散落原始颜色值。
 - 使用 shadcn/ui CLI 将组件源码添加到共享 `packages/ui`，Web 通过 Workspace Alias 引用。
 - 优先组合 shadcn/ui 现有组件；只有注册表中不存在合适组件时才创建自定义基础组件。
@@ -772,12 +777,17 @@ F-06 是所有付费生成的硬依赖。F-09 可以使用固定测试资产提�
 ### 14.1 基础体验
 
 - 使用 Tailwind CSS 主题变量实现 Pop Anime 设计 Token、字体、色板、描边、投影和组件状态。
+- Primitive、Semantic 和 Component Token 必须与 `docs/design-system.md` 一致。
+- 业务组件禁止硬编码颜色、字号、间距、圆角、阴影、Z-Index 和动画时长。
+- 新增 Token 或 Variant 必须先更新设计系统规范和 Light/Dark 示例。
 - shadcn/ui 组件使用语义颜色与内置 Variant；布局类不得覆盖组件颜色和字体语义。
 - 表单使用 `FieldGroup`、`Field` 和对应的输入组件，并通过 `data-invalid` 与 `aria-invalid` 表达校验状态。
 - 反馈优先使用 shadcn/ui 的 Alert、Empty、Skeleton、Spinner、Progress 和 Sonner。
 - Dialog、Sheet、Drawer 必须提供可访问标题；Avatar 必须包含 Fallback。
 - 条件类使用 `cn()`，间距使用 `gap-*`，相同宽高使用 `size-*`。
 - 建立响应式布局、键盘操作和 WCAG 2.2 AA 基线。
+- 为核心组件建立 Light 与 Dark 视觉回归测试。
+- 在 CI 中扫描业务源码中的颜色和任意视觉值硬编码。
 - 所有文案从本地化资源读取。
 
 ### 14.2 页面顺序
