@@ -1,9 +1,3 @@
-import {
-  EPISODE_SCRIPT_MAX_LENGTH,
-  EPISODE_SCRIPT_MIN_LENGTH,
-  EPISODE_TITLE_MAX_LENGTH,
-} from "@plotpop/contracts";
-
 /**
  * English UI copy. `docs/design-system.md` §14 keeps every visible string out of
  * components, so base components take copy as props and pages read it from here.
@@ -11,119 +5,31 @@ import {
  * The first UI is English only; this stays a plain module until a second locale
  * makes a loader worth its weight.
  *
- * Length limits are interpolated from the contract rather than typed out, so a
- * message cannot promise a limit the schema does not enforce.
+ * ## Adding copy
+ *
+ * One module per page or per shared surface, named in kebab-case after what it
+ * covers, exporting a single `as const` object under its camelCase name. Add copy
+ * to the module that owns the surface — this file only aggregates, so slices that
+ * land on separate branches each touch one file of their own plus one line below.
+ * `locales/en.test.ts` fails if a module is missing from the aggregate, so a
+ * forgotten line cannot reach the browser as absent copy.
  */
+import { creatorHome } from "./creator-home";
+import { generationStatus } from "./generation-status";
+import { landing } from "./landing";
+import { shell } from "./shell";
+import { studio } from "./studio";
+import { theme } from "./theme";
+import { wizard } from "./wizard";
+
 export const messages = {
-  shell: {
-    skipToContent: "Skip to content",
-  },
-  theme: {
-    group: "Theme",
-    system: "System",
-    light: "Light",
-    dark: "Dark",
-  },
-  creatorHome: {
-    title: "Creator Home",
-    episodes: {
-      heading: "Episodes",
-    },
-    empty: {
-      title: "No episodes yet",
-      description:
-        "Bring a script and a cast. PlotPop turns them into a 5 to 10 minute episode you can review shot by shot.",
-      action: "Create episode",
-    },
-  },
-  /** §12.4: the labels for the contract's task states. Pages never invent one. */
-  generationStatus: {
-    draft: "Draft",
-    queued: "Queued",
-    generating: "Generating",
-    needs_review: "Needs review",
-    completed: "Completed",
-    failed: "Failed",
-  },
-  /**
-   * The five step wizard (§5.3). Each step's description is what that step
-   * actually does, taken from §7.1 to §7.5 — a creator reviewing the prototype
-   * needs to recognise the flow, not read filler.
-   */
-  wizard: {
-    title: "New episode",
-    continue: "Continue",
-    back: "Back",
-    steps: {
-      label: "Creation steps",
-      script: "Script",
-      cast: "Cast",
-      storyboard: "Storyboard",
-      animate: "Animate",
-      export: "Export",
-    },
-    errorSummary: {
-      title: "Fix these before continuing",
-    },
-    script: {
-      description:
-        "Paste your English script. PlotPop pulls out characters, locations, lines, actions and scene boundaries so you can check them before anything is generated.",
-      title: {
-        label: "Episode title",
-        description: "Shown in your episode list and in exports.",
-        errors: {
-          required: "Give the episode a title.",
-          tooLong: `Keep the title to ${EPISODE_TITLE_MAX_LENGTH} characters or fewer.`,
-        },
-      },
-      body: {
-        label: "Episode script",
-        description:
-          "Dialogue and action, in English. Scene headings help, but PlotPop can work without them.",
-        placeholder: "INT. ROOFTOP - NIGHT\n\nMAYA\nYou came.",
-        errors: {
-          tooShort: `Paste at least ${EPISODE_SCRIPT_MIN_LENGTH} characters. A shorter script cannot be split into scenes.`,
-          tooLong: `Keep the script to ${EPISODE_SCRIPT_MAX_LENGTH} characters or fewer.`,
-        },
-      },
-    },
-    cast: {
-      description:
-        "PlotPop matches the characters in your script to your existing series cast, or suggests new ones. You check every name, reference image, appearance and voice.",
-    },
-    storyboard: {
-      description:
-        "PlotPop drafts scenes and shots with duration, shot size, lines, action and prompts. Reorder, add, remove, split or merge them before any video is generated.",
-    },
-    animate: {
-      description:
-        "PlotPop estimates the credits and asks you to confirm, then reserves them and generates video and audio shot by shot.",
-    },
-    export: {
-      description:
-        "Review warnings and failed shots, then render the final cut. Export 1080p MP4 in 16:9 or 9:16, with burned in subtitles or clean, plus a separate subtitle file.",
-    },
-  },
-  /** Episode Studio (§8 of the design spec, §13 of the design system). */
-  studio: {
-    navigator: {
-      label: "Scenes and shots",
-      sceneLabel: "Scene",
-      shotLabel: "Shot",
-    },
-    preview: {
-      label: "Preview",
-      empty: "No frame yet for this shot.",
-    },
-    inspector: {
-      label: "Shot inspector",
-      line: "Line",
-      noLine: "No line in this shot.",
-      duration: "Duration",
-      status: "Status",
-    },
-  },
-  landing: {
-    openCreatorHome: "Open Creator Home",
-  },
+  creatorHome,
+  generationStatus,
+  landing,
+  shell,
+  studio,
+  theme,
+  wizard,
 } as const;
+
+export type Messages = typeof messages;
