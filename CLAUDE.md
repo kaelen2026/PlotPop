@@ -211,14 +211,15 @@ Token 与主题实现在 `packages/ui/src/styles/theme.css`，`apps/web/app/glob
 
 完整规则见 `.claude/rules/workflow.md`。要点：
 
-- **禁止直接在 `main` 提交。** 提交前跑 `git branch --show-current` 确认不是 `main`。每项任务一个分支、一个 worktree、一个 PR。worktree 与主仓库平级，命名 `PlotPop-<简述>`。
+- **禁止直接在 `main` 提交，并且已被强制。** `.husky/pre-commit` 拒绝在 `main` 上的提交，`.husky/pre-push` 拒绝推向 `main`，GitHub `protect-main` Ruleset 拒绝一切不走 PR 的 `main` 写入。每项任务一个分支、一个 worktree、一个 PR。worktree 与主仓库平级，命名 `PlotPop-<简述>`。
 - **按垂直切片拆任务，不按技术层横向拆。** 一个切片包含该行为所需的契约、数据、后端、前端、测试和文档，独立可构建、可验收、可回退。若一句话描述需要用"以及""顺便"连接两个无关结果，继续拆。
 - 一个 commit 一个原子意图。测试与它验证的实现放同一个 commit。任一中间 commit 都不得留下无法构建的仓库状态。
 - 提交信息遵循 Conventional Commits，由 Husky `commit-msg` + commitlint 强制。说明用英文，与现有提交历史一致。
 - 遵循红—绿—重构：先写暴露目标行为的失败测试。
 
-质量门禁的三条行为（F-01.03）：
+质量门禁的四条行为（前三条来自 F-01.03）：
 
+- **`main` 的写入路径只有一条：PR。** 本地两个钩子给即时反馈，GitHub `protect-main` Ruleset 是不依赖本地文件的底线 —— 它同时禁止 force-push 与删除 `main`，并要求 CI 通过。两层机制与绕过方式见 `.claude/rules/workflow.md` §3。
 - **`pre-commit` 只检查不改写。** 暂存文件格式或 Lint 不通过时提交被拒绝，钩子不会静默重写你已经审过的内容。要拿修复结果自己跑 `pnpm lint:fix`。
 - **`.only` 和 `.skip` 会让提交失败。** 前者同时被 Vitest（`allowOnly: false`）和 Biome `noFocusedTests` 拦，后者被 `noSkippedTests` 拦。确有必要跳过时写 `// biome-ignore lint/suspicious/noSkippedTests: <原因>`，把理由留在代码里。
 - **CI 跑全仓库，不只跑暂存文件。** 本地钩子可以 `--no-verify` 绕过，CI 不能；PR 上还会用 commitlint 校验该 PR 的全部提交信息。

@@ -104,6 +104,12 @@ Still to come: `pnpm test:e2e` with Playwright.
 
 `pre-commit` checks staged files without rewriting them, so a formatting failure rejects the commit instead of silently editing what you staged. `commit-msg` runs commitlint. A focused or skipped test fails both the suite and the linter; keeping a skip requires a `biome-ignore` comment that states why. CI reruns every gate over the whole repository, because the local hooks can be skipped with `--no-verify`.
 
+`main` only accepts merges from a pull request. `pre-commit` refuses to commit while `main` is checked out and `pre-push` refuses to push to it, which tells you early; the `protect-main` ruleset on GitHub refuses direct pushes, force pushes, branch deletion, and merges whose CI has not passed, which is the layer that holds when the hooks are skipped or missing. Work happens on a branch in its own worktree:
+
+```bash
+git worktree add -b feat/<slug> ../PlotPop-<slug> origin/main
+```
+
 Narrow to one workspace while developing:
 
 ```bash
