@@ -12,6 +12,8 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
+    "docker:up": "docker compose --file docker/compose.yaml up --build --detach --wait",
+    "docker:down": "docker compose --file docker/compose.yaml down",
     "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write --error-on-warnings .",
     "prepare": "husky"

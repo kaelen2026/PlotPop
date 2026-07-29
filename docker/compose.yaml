@@ -1,0 +1,169 @@
+# Local development dependencies plus the api and worker images.
+#
+#   pnpm docker:up      start everything and wait until it is healthy
+#   pnpm docker:down    stop and keep the data volumes
+#
+# Published host ports are overridable so this stack can run on a machine that
+# already has a Postgres or Redis of its own:
+#
+#   POSTGRES_HOST_PORT=5433 pnpm docker:up
+#
+# Values here are local-only. Nothing in this file is a production credential,
+# and production configuration never comes from a compose file.
+
+name: plotpop
+
+x-service-environment: &service-environment
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+  # In-network addresses: the services reach each other by compose service name,
+  # never through the published host ports.
+  DATABASE_URL: postgresql://plotpop:plotpop@postgres:5432/plotpop
+  REDIS_URL: redis://redis:6379
+  STORAGE_ENDPOINT: http://minio:9000
+  STORAGE_REGION: us-east-1
+  STORAGE_BUCKET: plotpop-local
+  STORAGE_ACCESS_KEY_ID: plotpop
+  STORAGE_SECRET_ACCESS_KEY: plotpop-local-secret
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: plotpop
+      POSTGRES_PASSWORD: plotpop
+      POSTGRES_DB: plotpop
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      # Postgres 18 expects the mount one level above the data directory so a
+      # later `pg_upgrade --link` does not cross a mount boundary.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # `-U` matters: without it pg_isready asks for the root user and reports
+      # ready while the database this project uses is still initialising.
+      test: ["CMD-SHELL", "pg_isready -U plotpop -d plotpop"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # Queue state is rebuildable from the outbox (ADR-002, ADR-003), so appendonly
+    # is off: local restarts stay fast and nothing here is a source of truth.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512m
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: plotpop
+      MINIO_ROOT_PASSWORD: plotpop-local-secret
+    ports:
+      - "127.0.0.1:${STORAGE_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${STORAGE_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+
+  # One-shot: creates the bucket the services expect, then exits. Without it the
+  # first upload of a fresh environment fails on a missing bucket.
+  minio-bucket:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 plotpop plotpop-local-secret
+        mc mb --ignore-existing local/plotpop-local
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    # Node is PID 1 here; init reaps zombies and forwards signals. Draining
+    # in-flight work arrives with the queue slice.
+    init: true
+    environment:
+      <<: *service-environment
+      API_PORT: 3001
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-bucket:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512m
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *service-environment
+      WORKER_PORT: 3002
+    ports:
+      - "127.0.0.1:${WORKER_HOST_PORT:-3002}:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-bucket:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1g
+
+volumes:
+  postgres-data:
+  minio-data:
+
+networks:
+  default:
+    name: plotpop
