@@ -1,10 +1,24 @@
 {
   "extends": "../../tooling/typescript/base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["node", "@testing-library/jest-dom"],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "paths": {
+      "@plotpop/ui/lib": ["./src/lib"],
+      "@plotpop/ui/lib/*": ["./src/lib/*"],
+      "@plotpop/ui/hooks": ["./src/hooks"],
+      "@plotpop/ui/hooks/*": ["./src/hooks/*"],
+      "@plotpop/ui/components": ["./src/components"],
+      "@plotpop/ui/components/*": ["./src/components/*"]
+    }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts", "../../tooling/vitest/*.ts"],
+  "exclude": ["node_modules"]
 }

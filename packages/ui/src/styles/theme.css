@@ -365,6 +365,21 @@
     /* §7.1: tabular figures so credits, timecodes and progress do not jitter. */
     font-variant-numeric: tabular-nums;
   }
+
+  /*
+   * §10: switching the theme may transition colours and nothing else. Every
+   * element needs its own transition because the token values change on the root
+   * — transitioning only `body` would animate the Canvas while cards snapped.
+   * Transforms, shadows and sizes are deliberately absent from this list: a
+   * theme change must not move anything.
+   */
+  *,
+  ::before,
+  ::after {
+    transition-property: color, background-color, border-color, outline-color, fill, stroke;
+    transition-duration: var(--pp-duration-fast);
+    transition-timing-function: var(--ease-out);
+  }
 }
 
 /*

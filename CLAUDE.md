@@ -16,12 +16,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **F-02 进行中：**
 
 - F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
+- F-02.02：`system | light | dark` 切换器。shadcn/ui 接入 `packages/ui`（`components.json`、`cn()`、`toggle`/`toggle-group`/`skeleton`），Vitest + Testing Library 组件测试，以及 `apps/web/locales/en.ts` 本地化骨架。切换写 `localStorage` 并即时改根属性，不刷新页面；选 `system` 时持续跟随操作系统。
 
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
 尚不存在：`packages/db`、`packages/domain`、`packages/auth`、`packages/providers`、`packages/testkit`、Better Auth、任何业务表与业务路由、Playwright 与 `test:e2e`、优雅停机（属 §16）。
 
-`packages/ui` 目前**只有 Token 与主题解析，还没有任何组件**：`components.json`、`cn()`、shadcn/ui 组件源码、主题切换器和本地化资源都还不存在，随后续 F-02 切片建立。
+`packages/ui` 目前只有 Token、主题与三个注册表组件；Creator Home、五步向导、Episode Studio 原型和视觉回归都还不存在，随后续 F-02 切片建立。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，属 F-03。
 
 这意味着：
 
@@ -89,9 +90,12 @@ docker/smoke.sh plotpop-api:latest api 3001   # CI 用的同一个脚本
 shadcn/ui 组件一律用项目包管理器操作，且添加到 `packages/ui` 而非 `apps/web`：
 
 ```bash
+cd packages/ui
 pnpm dlx shadcn@latest add <component>
 pnpm dlx shadcn@latest diff <component>   # 更新已改过的组件前先看差异
 ```
+
+CLI 必须在 `packages/ui` 里跑（`components.json` 在那里）。它写出的源码通常不满足 `docs/design-system.md`：注册表用 `text-sm`、3px 焦点 Ring 和 `px-1.5` 这类未批准值。改动写在组件文件顶部注释里并注明条款，`diff` 才能区分「我们的决定」和「上游漂移」。
 
 ## 架构：三服务 + 共享包
 
@@ -108,7 +112,14 @@ packages/     auth api-client config contracts db domain observability providers
 - `config`：各服务环境变量的 Zod Schema 与解析。Web 的 Schema 里**没有**数据库、队列、存储字段 —— 这是 ADR-001 的边界，不要往里加。
 - `observability`：结构化日志与就绪检查探针。业务代码不要再写 `console.log`。
 - `api-client`：`hc<AppType>` 的预编译类型客户端；Web 侧只导入 `ApiClient`，不要在业务文件里重新 `hc<AppType>()`。
-- `ui`：设计 Token 与主题解析，`docs/design-system.md` 的实现处。色值只在这里出现，业务代码只消费 Utility。API 与 Worker **不得**依赖它。
+- `ui`：设计 Token、主题与 shadcn/ui 组件，`docs/design-system.md` 的实现处。色值只在这里出现，业务代码只消费 Utility。API 与 Worker **不得**依赖它。
+
+`packages/ui` 与其他包有两点不同，改它之前要知道：
+
+- 它**导出 TSX 源码而不是 `dist`**（`apps/web` 用 `transpilePackages` 转译），这样改组件不用先构建就能热更新。因此它没有 `build` 脚本，`typecheck` 是 `tsc --noEmit`。
+- 因为走打包器解析，包内相对导入**不带 `.js` 后缀**。Turbopack 不会把 `.js` 映射到 `.ts`，加后缀会让 `next build` 直接失败。其他包仍是 nodenext + `.js`，别互相套用。
+
+组件的可见文案一律走 props，不写在组件里（§14）；文案放 `apps/web/locales/en.ts`。
 
 依赖方向：`api-client` → `apps/api`（**仅类型**，`import type`，不得让服务端运行时代码进入浏览器包）。
 

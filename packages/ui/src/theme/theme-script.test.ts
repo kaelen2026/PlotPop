@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveTheme, THEME_STORAGE_KEY, type ThemePreference } from "./preference.js";
-import { THEME_INIT_SCRIPT } from "./theme-script.js";
+import { resolveTheme, THEME_STORAGE_KEY, type ThemePreference } from "./preference";
+import { THEME_INIT_SCRIPT } from "./theme-script";
 
 /**
  * `docs/design-system.md` §5.2 forbids rendering Light and then switching to

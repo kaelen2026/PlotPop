@@ -9,5 +9,5 @@ export {
   THEME_STORAGE_KEY,
   type ThemePreference,
   themePreferenceSchema,
-} from "./theme/preference.js";
-export { THEME_INIT_SCRIPT } from "./theme/theme-script.js";
+} from "./theme/preference";
+export { THEME_INIT_SCRIPT } from "./theme/theme-script";

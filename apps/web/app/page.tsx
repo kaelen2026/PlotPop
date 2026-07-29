@@ -1,9 +1,15 @@
+import { ThemeSwitcher } from "@plotpop/ui/components/theme-switcher";
+import { messages } from "@/locales/en";
+
 export default function HomePage() {
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      {/* The wordmark is the brand name, not copy: §14's localisation rule
-          starts applying with the first real sentence, in Creator Home. */}
-      <h1 className="font-display text-display-sm text-foreground">PlotPop</h1>
-    </main>
+    <div className="flex min-h-dvh flex-col">
+      {/* §8.3 page padding: 4 on Small, 6 from Medium up. */}
+      <header className="flex items-center justify-between gap-4 p-4 md:p-6">
+        {/* The wordmark is the brand name, not copy, so it is not localised. */}
+        <h1 className="font-display text-heading-md">PlotPop</h1>
+        <ThemeSwitcher labels={messages.theme} />
+      </header>
+    </div>
   );
 }

@@ -337,6 +337,19 @@ describe("theme tokens", () => {
     }
   });
 
+  it("transitions only colours when the theme changes", () => {
+    // §10: a theme change may cross fade colours and must not move anything, so
+    // no transform, shadow or size property may join this list.
+    const transition = /transition-property:([^;]+);/.exec(themeCss)?.[1] ?? "";
+    const properties = transition.split(",").map((property) => property.trim());
+
+    expect(properties.length).toBeGreaterThan(0);
+    expect(
+      properties.filter((property) => !/^(color|fill|stroke|[a-z-]+-color)$/.test(property)),
+    ).toEqual([]);
+    expect(themeCss).toContain("transition-duration: var(--pp-duration-fast)");
+  });
+
   it("collapses every duration to the instant step under reduced motion", () => {
     // §10: colour and opacity transitions survive but drop to the instant step.
     const reducedMotion = declaredProperties(blockBody(REDUCED_MOTION_SELECTOR));
