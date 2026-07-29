@@ -1,7 +1,9 @@
-import { type AuthService, createAuthService } from "@plotpop/auth";
+import type { AuthService } from "@plotpop/auth";
 import { applyMigrations, type Database } from "@plotpop/db";
 import { createTestDatabase, type TestDatabase } from "@plotpop/db/testing";
+import { createLogger } from "@plotpop/observability";
 import { createApp } from "../app.js";
+import { createApiAuthService } from "../auth-service.js";
 import { migrationSources } from "../migrations.js";
 
 /*
@@ -26,21 +28,18 @@ export type ApiHarness = {
   close(): Promise<void>;
 };
 
-export type ApiHarnessOptions = {
-  readonly onUserCreated?: (user: { id: string; email: string; name: string }) => Promise<void>;
-};
-
-export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
+export async function createApiHarness(): Promise<ApiHarness> {
   const database: TestDatabase = await createTestDatabase();
   await applyMigrations(database.db, migrationSources);
 
-  const auth = createAuthService({
+  const auth = createApiAuthService({
     db: database.db,
+    // Discarded rather than printed: a passing suite should not scroll.
+    logger: createLogger({ service: "api", level: "error", sink: () => {} }),
     secret: TEST_SECRET,
     baseUrl: WEB_ORIGIN,
     trustedOrigins: [WEB_ORIGIN],
     useSecureCookies: false,
-    ...(options.onUserCreated ? { onUserCreated: options.onUserCreated } : {}),
   });
 
   const app = createApp({
