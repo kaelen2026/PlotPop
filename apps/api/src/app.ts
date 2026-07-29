@@ -1,13 +1,16 @@
 import type { AuthService } from "@plotpop/auth";
 import type { HealthResponse } from "@plotpop/contracts";
+import type { Database } from "@plotpop/db";
 import type { ReadinessReporter } from "@plotpop/observability";
 import { Hono } from "hono";
+import { createWorkspaceRoutes } from "./routes/workspaces.js";
 
 const liveness: HealthResponse = { status: "ok", service: "api" };
 
 export type AppDependencies = {
   readonly readiness: ReadinessReporter;
   readonly auth: AuthService;
+  readonly db: Database;
 };
 
 /**
@@ -15,7 +18,7 @@ export type AppDependencies = {
  * (docs/ai-comic-drama-saas-design.md §21), and every response states its status
  * explicitly so the client infers a usable union.
  */
-export function createApp({ readiness, auth }: AppDependencies) {
+export function createApp({ readiness, auth, db }: AppDependencies) {
   return (
     new Hono()
       .get("/health", (c) => c.json(liveness, 200))
@@ -34,6 +37,8 @@ export function createApp({ readiness, auth }: AppDependencies) {
        * and they are not part of the RPC surface.
        */
       .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
+      // Versioned business routes (§18.2). Everything under here needs a session.
+      .route("/api/v1/workspaces", createWorkspaceRoutes({ db, auth }))
   );
 }
 

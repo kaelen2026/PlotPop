@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { MINIMUM_PASSWORD_LENGTH } from "@plotpop/contracts";
 import type { Database, MigrationSource } from "@plotpop/db";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -68,13 +69,6 @@ export type AuthServiceOptions = {
    */
   readonly onUserCreated?: (user: AuthUser) => Promise<void>;
 };
-
-/**
- * Password floor. Better Auth defaults to 8; length is the only requirement that
- * reliably raises the cost of guessing without pushing people towards patterns a
- * composition rule would force. No maximum below the hash's own limit.
- */
-export const MINIMUM_PASSWORD_LENGTH = 12;
 
 export function createAuthService(options: AuthServiceOptions): AuthService {
   const auth = betterAuth({

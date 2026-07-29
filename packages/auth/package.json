@@ -26,6 +26,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@plotpop/contracts": "workspace:*",
     "@plotpop/db": "workspace:*",
     "better-auth": "^1.6.25",
     "drizzle-orm": "^0.45.2",

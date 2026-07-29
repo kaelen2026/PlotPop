@@ -39,6 +39,6 @@ const readiness = createReadinessReporter({
   ],
 });
 
-serve({ fetch: createApp({ readiness, auth }).fetch, port: config.port }, (info) => {
+serve({ fetch: createApp({ readiness, auth, db }).fetch, port: config.port }, (info) => {
   logger.info("listening", { port: info.port, nodeEnv: config.nodeEnv });
 });

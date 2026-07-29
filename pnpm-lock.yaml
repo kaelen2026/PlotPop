@@ -201,6 +201,9 @@ importers:
 
   packages/auth:
     dependencies:
+      '@plotpop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@plotpop/db':
         specifier: workspace:*
         version: link:../db
