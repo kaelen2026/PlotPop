@@ -6,23 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**只有工程骨架，还没有业务功能。F-01 已全部完成：**
+**F-01 与 F-02 已完成，F-03 进行中。Web 侧有可点击原型但还不连业务 API；服务端刚有鉴权，业务表与业务路由仍未建立。**
+
+F-01 已全部完成：
 
 - F-01.01：pnpm Workspace + Turborepo、`apps/web`、`apps/api`、`apps/worker` 三个最小应用、`packages/contracts`（Zod）、`tooling/typescript` 共享编译配置，以及三个服务各自的存活检查（Liveness）。
 - F-01.02：`packages/config` 用 Zod 在启动时解析各服务环境变量，缺凭据直接启动失败。
 - F-01.03：Biome、Vitest 严格化与覆盖率、Husky + lint-staged + commitlint、GitHub Actions CI。
 - F-01.04：API 与 Worker 多阶段镜像（非 Root）、Docker Compose 本地依赖（PostgreSQL + Redis + MinIO）、依赖就绪检查（Readiness），以及构建镜像并做启动健康验证的 CI 任务。
 
-**F-02 进行中：**
+**F-02 已收尾。** 两项移交 F-11：镜头检查器的编辑表单与小屏审阅批准布局 —— 它们要操作的字段契约属 F-04 / F-05，动作语义依赖 ADR-003 / ADR-004 / ADR-006，在那之前只能对着占位数据做一套需要重写的表单。理由与移交记录见 `docs/implementation-plan.md` §4.5。
 
 - F-02.01：`packages/ui` 从零创建，`docs/design-system.md` 的三层 Token 落进 `src/styles/theme.css`（Tailwind v4 CSS-first，无 `tailwind.config`）；Outfit / Inter / JetBrains Mono 经 `next/font` 自托管并预加载；主题在首次绘制前由 `<head>` 内联脚本解析成 `data-theme`，`data-theme-preference` 单独记录 `system | light | dark`。两个门禁随之建立：`packages/ui/src/styles/theme.test.ts` 解析 `theme.css` 并逐对验证 94 组 WCAG 2.2 AA 对比度，`apps/web/design-system.test.ts` 扫描业务源码里的视觉硬编码。
 - F-02.02：`system | light | dark` 切换器。shadcn/ui 接入 `packages/ui`（`components.json`、`cn()`、`toggle`/`toggle-group`/`skeleton`），Vitest + Testing Library 组件测试，以及 `apps/web/locales/en.ts` 本地化骨架。切换写 `localStorage` 并即时改根属性，不刷新页面；选 `system` 时持续跟随操作系统。
 - F-02.03：Creator Home 空状态。`apps/web/components/app-shell.tsx` 是登录后页面的外壳（Skip 链接 + Header + `container-app`），`/home` 是空状态（`empty`、`button`），`/` 是通向它的临时落地页。路由集中在 `apps/web/lib/routes.ts`。
-- F-02.08：Studio 时间线。§13 的四个 Component Token（Track / Clip / Selection / Playhead）落进 `theme.css` 并纳入对比度验证；时间线按时长比例排布镜头，Medium 以下不渲染（§8.4）。当前镜头的选中表达统一为 accent 边界（§6.2），场景导航区同步改过来。
-- F-02.07：生成前的积分预估与确认（§12.5）。`creditEstimateSchema` 进 `packages/contracts`，含 `coversEstimate`（按**上界**判断，不是下界）与 `requiresReconfirmation`。`CreditCost` 组件进 `packages/ui`，动画步骤用它，余额不足时按钮直接禁用。
-- F-02.06：Episode Studio 三栏工作台。`/episodes/[id]` 出现，剧集列表的标题成为进入它的链接。§8.4 的三栏宽度实现为 `studio-grid` utility（业务代码不写任意值），Scene Navigator 可浏览场景与镜头并选中镜头，Preview 与 Inspector 作为稳定区域存在但内容随后续切片补齐。无障碍门禁扩展到全部四个页面，视觉基线新增 Studio 的 Light/Dark × 两个层级。
-- F-02.05：五步创作向导。`/episodes/new` 出现，Creator Home 的入口不再悬空。脚本步骤有真实表单与 Zod 校验（`episodeDraftInputSchema` 在 `packages/contracts`），其余四步可走通但只展示该步要做什么，表单随后续切片补齐。新增注册表组件：`field`、`input`、`textarea`、`label`、`separator`、`alert`。
 - F-02.04：剧集列表与统一状态表达。`generationStatusSchema` 进 `packages/contracts`，`GenerationStatusBadge` 进 `packages/ui`（Badge 补了 `success`/`warning`/`info` 三个语义 Variant）。Creator Home 现在按 `episodes` 长度在列表与空状态之间切换，数据来自 `apps/web/lib/prototype-episodes.ts`（占位，接 API 时删掉）。
+- F-02.05：五步创作向导。`/episodes/new` 出现，Creator Home 的入口不再悬空。脚本步骤有真实表单与 Zod 校验（`episodeDraftInputSchema` 在 `packages/contracts`），其余四步可走通但只展示该步要做什么，表单随后续切片补齐。新增注册表组件：`field`、`input`、`textarea`、`label`、`separator`、`alert`。
+- F-02.06：Episode Studio 三栏工作台。`/episodes/[id]` 出现，剧集列表的标题成为进入它的链接。§8.4 的三栏宽度实现为 `studio-grid` utility（业务代码不写任意值），Scene Navigator 可浏览场景与镜头并选中镜头，Preview 与 Inspector 作为稳定区域存在但内容随后续切片补齐。无障碍门禁扩展到全部四个页面，视觉基线新增 Studio 的 Light/Dark × 两个层级。
+- F-02.07：生成前的积分预估与确认（§12.5）。`creditEstimateSchema` 进 `packages/contracts`，含 `coversEstimate`（按**上界**判断，不是下界）与 `requiresReconfirmation`。`CreditCost` 组件进 `packages/ui`，动画步骤用它，余额不足时按钮直接禁用。
+- F-02.08：Studio 时间线。§13 的四个 Component Token（Track / Clip / Selection / Playhead）落进 `theme.css` 并纳入对比度验证；时间线按时长比例排布镜头，Medium 以下不渲染（§8.4）。当前镜头的选中表达统一为 accent 边界（§6.2），场景导航区同步改过来。
 
 **F-03 进行中（最窄端到端 happy path 已完成）：**
 
@@ -38,7 +40,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 尚不存在：`packages/domain`、`packages/providers`、`packages/testkit`、Outbox 与队列、优雅停机（属 §16）。测试工厂目前放在各自的测试里；`packages/testkit` 在第一个需要跨 workspace 共享工厂的切片里建立。
 
-`packages/ui` 目前有 Token、主题、十二个注册表组件与 `GenerationStatusBadge`。向导只有脚本步骤有表单，其余四步只展示说明。Studio 只做到浏览：**Timeline、镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口都还不存在**。§12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**，剧集列表的行暂时不可点击。余额与预估目前是 `apps/web/lib/prototype-estimate.ts` 的占位数据；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。**主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）也还没有** —— 需要账户接口，本次 F-03 切片没做，见上面的「F-03 尚未做」。
+Web 侧的原型边界，动手前要知道：
+
+- **所有页面数据都是占位的**，来自 `apps/web/lib/prototype-*.ts`。Web 不读数据库（ADR-001），真实数据要等 F-04 / F-05 的 API；接上时删掉这些文件。
+- 向导只有脚本步骤有表单，其余四步可走通但只展示该步要做什么。
+- Studio 做到浏览与时间线。**镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口不在这里** —— 前两项已移交 F-11（见上），后两项属 F-06 / F-09。
+- §12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**。
+- 预估与余额是占位值；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。
+- **主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）还没有** —— 需要账户接口，本次 F-03 切片没做，见上面的「F-03 尚未做」。
 
 鉴权页面是在 `Field` / `Input` / `Label` / `Alert` 进入 `packages/ui` 之前写的，所以**用带语义 Token 的原生元素搭成**。这些组件现在已经有了（F-02.05 带进来的），下一个碰鉴权页面的切片应当替换过去；替换不会改变视觉，因为页面里没有任何非 Token 值。
 
