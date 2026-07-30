@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { assetReferenceSchema, assetSchema } from "./asset.js";
 
 /**
  * A Character, and the version of it that is current
@@ -28,10 +29,35 @@ export const CHARACTER_APPEARANCE_MAX_LENGTH = 2_000;
 const characterNameSchema = z.string().trim().min(1).max(CHARACTER_NAME_MAX_LENGTH);
 const characterAppearanceSchema = z.string().trim().min(1).max(CHARACTER_APPEARANCE_MAX_LENGTH);
 
+/**
+ * §32.1 keeps a character's front and back reference images alongside its description.
+ * Four is room for both plus two supplements — a bound so that one character cannot make
+ * a cast list arbitrarily expensive to render, not a creative judgement.
+ */
+export const CHARACTER_REFERENCE_IMAGE_MAX_COUNT = 4;
+
+/**
+ * The assets a version pins, in the order they were given.
+ *
+ * Duplicates are refused rather than collapsed: sending the same image twice is a client
+ * that lost track of its own list, and quietly storing one of them hides that.
+ */
+const referenceAssetIdsSchema = z
+  .array(assetSchema.shape.id)
+  .max(CHARACTER_REFERENCE_IMAGE_MAX_COUNT)
+  .refine((ids) => new Set(ids).size === ids.length)
+  .default([]);
+
 export const characterVersionSchema = z.strictObject({
   /** Counts from 1 within one character, so a creator can refer to "version 2". */
   version: z.number().int().positive(),
   appearance: z.string().min(1),
+  /**
+   * What this version looked like, as files. Pinned to the version rather than to the
+   * character for the same reason the appearance is (§32.7): an episode generated from
+   * version 2 has to keep finding version 2's images, not whatever was uploaded later.
+   */
+  referenceImages: z.array(assetReferenceSchema),
   createdAt: z.iso.datetime(),
 });
 
@@ -71,6 +97,14 @@ export type CharacterList = z.infer<typeof characterListSchema>;
 export const characterCreateInputSchema = z.strictObject({
   name: characterNameSchema,
   appearance: characterAppearanceSchema,
+  /**
+   * Assets uploaded and confirmed beforehand (§26), referenced by id.
+   *
+   * It has to be this way round: a version row is never rewritten, so an image cannot be
+   * attached to one after the fact. Defaults to none, because a character described only
+   * in words is a normal starting point.
+   */
+  referenceAssetIds: referenceAssetIdsSchema,
 });
 
 export type CharacterCreateInput = z.infer<typeof characterCreateInputSchema>;
@@ -89,6 +123,14 @@ export type CharacterCreateInput = z.infer<typeof characterCreateInputSchema>;
 export const characterVersionCreateInputSchema = z.strictObject({
   appearance: characterAppearanceSchema,
   revision: characterSchema.shape.revision,
+  /**
+   * What the new version pins, stated in full rather than as a change to the last one.
+   *
+   * A version is a snapshot, so omitting this means the new version has no reference
+   * images — not that it keeps the previous ones. A form editing an appearance therefore
+   * has to carry the existing images forward, and `character-row.tsx` does.
+   */
+  referenceAssetIds: referenceAssetIdsSchema,
 });
 
 export type CharacterVersionCreateInput = z.infer<typeof characterVersionCreateInputSchema>;

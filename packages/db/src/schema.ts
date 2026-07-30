@@ -6,6 +6,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -195,5 +196,35 @@ export const characterVersion = pgTable(
     index("character_version_character_id_version_idx").on(table.characterId, table.version.desc()),
     check("character_version_positive", sql`${table.version} > 0`),
     check("character_version_appearance_not_blank", sql`length(btrim(${table.appearance})) > 0`),
+  ],
+);
+
+/**
+ * §32.1: the reference images one version pins. `migrations/0005_character_version_asset.sql`.
+ *
+ * The asset reference has no cascade on purpose — deleting a file a shipped version used
+ * would make that episode unreproducible (§32.7), so the database refuses it. Removing an
+ * image means adding a version that does not pin it.
+ */
+export const characterVersionAsset = pgTable(
+  "character_version_asset",
+  {
+    characterVersionId: uuid("character_version_id")
+      .notNull()
+      .references(() => characterVersion.id, { onDelete: "cascade" }),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => asset.id),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.characterVersionId, table.assetId] }),
+    unique("character_version_asset_position_unique").on(table.characterVersionId, table.position),
+    index("character_version_asset_version_id_position_idx").on(
+      table.characterVersionId,
+      table.position,
+    ),
+    index("character_version_asset_asset_id_idx").on(table.assetId),
+    check("character_version_asset_position_not_negative", sql`${table.position} >= 0`),
   ],
 );

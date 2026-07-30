@@ -59,7 +59,7 @@ export function createApp({ readiness, auth, db, store }: AppDependencies) {
        * `/api/v1/workspaces/:workspaceId/series/:seriesId/characters`. Both ids are in the
        * path because both are checked (§20.1, §32.7).
        */
-      .route("/api/v1/workspaces", createCharacterRoutes({ db, auth }))
+      .route("/api/v1/workspaces", createCharacterRoutes({ db, auth, store }))
       /*
        * Assets hang off the workspace that owns them, not off the character that will
        * reference one: §20.4 makes an asset a workspace level record, and the same upload

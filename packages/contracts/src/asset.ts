@@ -114,3 +114,21 @@ export const assetUploadTicketSchema = z.strictObject({
 });
 
 export type AssetUploadTicket = z.infer<typeof assetUploadTicketSchema>;
+
+/**
+ * An asset as it appears inside something that references it, with permission to read it.
+ *
+ * The url is here rather than behind a separate request because signing is a local
+ * computation: fetching a cast of ten would otherwise be eleven round trips to say
+ * something the first response already knew. `expiresAt` travels with it so the short life
+ * §26 requires is visible to whatever renders it, instead of being discovered when an
+ * image stops loading.
+ */
+export const assetReferenceSchema = z.strictObject({
+  assetId: assetSchema.shape.id,
+  contentType: assetContentTypeSchema,
+  url: z.url(),
+  expiresAt: z.iso.datetime(),
+});
+
+export type AssetReference = z.infer<typeof assetReferenceSchema>;

@@ -60,7 +60,12 @@ const CHARACTER: Character = {
   name: "Ada",
   revision: 2,
   createdAt: "2026-07-30T09:00:00.000Z",
-  currentVersion: { version: 2, appearance: SECOND, createdAt: "2026-07-30T10:00:00.000Z" },
+  currentVersion: {
+    version: 2,
+    appearance: SECOND,
+    referenceImages: [],
+    createdAt: "2026-07-30T10:00:00.000Z",
+  },
 };
 
 function versioned() {
@@ -146,7 +151,16 @@ describe("character row", () => {
         seriesId: SERIES_ID,
         characterId: CHARACTER.id,
       },
-      json: { appearance: "A third look.", revision: CHARACTER.revision },
+      /*
+       * The images this version pins are stated in full, because a version is a snapshot
+       * rather than a change to the last one. This character has none, so the list is empty;
+       * the case where it carries the existing ones forward has its own test.
+       */
+      json: {
+        appearance: "A third look.",
+        revision: CHARACTER.revision,
+        referenceAssetIds: [],
+      },
     });
     expect(refresh).toHaveBeenCalled();
   });
@@ -232,7 +246,12 @@ describe("character row", () => {
     row({
       ...CHARACTER,
       revision: 1,
-      currentVersion: { version: 1, appearance: FIRST, createdAt: "2026-07-30T09:00:00.000Z" },
+      currentVersion: {
+        version: 1,
+        appearance: FIRST,
+        referenceImages: [],
+        createdAt: "2026-07-30T09:00:00.000Z",
+      },
     });
 
     await userEvent.click(screen.getByRole("button", { name: COPY.history.show }));

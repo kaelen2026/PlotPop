@@ -1,5 +1,6 @@
 import {
   apiErrorSchema,
+  assetUploadTicketSchema,
   characterListSchema,
   characterSchema,
   characterVersionListSchema,
@@ -9,6 +10,7 @@ import {
 import { testClient } from "hono/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ApiHarness, createApiHarness, type SignedUpUser, signUp } from "./testing/harness.js";
+import { fakeImageBytes } from "./testing/object-store.js";
 
 /**
  * The character routes (`docs/ai-comic-drama-saas-design.md` §20.2, §32.7).
@@ -401,5 +403,172 @@ describe("character routes", () => {
     });
 
     expect(response.status).toBe(401);
+  });
+
+  /**
+   * Reference images (§32.1, §32.7).
+   *
+   * The order is forced by the shape of the data: an asset has to be uploaded and confirmed
+   * before a version can pin it, because a version row is never rewritten. What is worth
+   * pinning here is that the payload carries a signed url rather than a storage key, and
+   * that an older version keeps the images it was made with.
+   */
+  describe("reference images", () => {
+    const PNG_SIZE = 2_048;
+
+    /** The full upload a browser would do, ending in a confirmed asset id. */
+    async function uploadedAsset(user: SignedUpUser, workspaceId: string): Promise<string> {
+      const ticket = await client().api.v1.workspaces[":workspaceId"].assets.$post(
+        {
+          param: { workspaceId },
+          json: {
+            purpose: "character_reference",
+            contentType: "image/png",
+            byteSize: PNG_SIZE,
+            rightsConfirmed: true,
+          },
+        },
+        as(user),
+      );
+      const { assetId } = assetUploadTicketSchema.parse(await ticket.json());
+
+      harness.store.put(
+        harness.store.signed.at(-1)?.key as string,
+        fakeImageBytes("png", PNG_SIZE),
+      );
+      await client().api.v1.workspaces[":workspaceId"].assets[":assetId"].confirmation.$post(
+        { param: { workspaceId, assetId } },
+        as(user),
+      );
+
+      return assetId;
+    }
+
+    it("hands back a signed url and never the storage key", async () => {
+      const assetId = await uploadedAsset(nia, niaWorkspaceId);
+
+      const response = await characters().$post(
+        {
+          param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId },
+          json: { name: "Ada", appearance: APPEARANCE, referenceAssetIds: [assetId] },
+        },
+        as(nia),
+      );
+
+      expect(response.status).toBe(201);
+      const character = characterSchema.parse(await response.json());
+      const [image] = character.currentVersion.referenceImages;
+
+      expect(image).toMatchObject({ assetId, contentType: "image/png" });
+      // §26: private material is reachable only through a short-lived signed url.
+      expect(Date.parse(image?.expiresAt as string)).toBeGreaterThan(Date.now());
+
+      /*
+       * The url embeds the key — every presigned url does — so what matters is that the key
+       * is not also a field. A field would be a handle a client could keep and reuse after
+       * the signature expired; inside the url it is only usable for as long as the url is.
+       */
+      expect(Object.keys(image ?? {}).sort()).toEqual([
+        "assetId",
+        "contentType",
+        "expiresAt",
+        "url",
+      ]);
+    });
+
+    it("keeps a version's images when a later version drops them", async () => {
+      /*
+       * The reason images hang off the version at all (§32.7). An episode generated from
+       * version 1 has to keep finding version 1's reference image, however the character is
+       * described later.
+       */
+      const assetId = await uploadedAsset(nia, niaWorkspaceId);
+      const created = characterSchema.parse(
+        await (
+          await characters().$post(
+            {
+              param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId },
+              json: { name: "Bao", appearance: APPEARANCE, referenceAssetIds: [assetId] },
+            },
+            as(nia),
+          )
+        ).json(),
+      );
+
+      await versions().$post(
+        {
+          param: {
+            workspaceId: niaWorkspaceId,
+            seriesId: niaSeriesId,
+            characterId: created.id,
+          },
+          json: { appearance: "Now with a shaved head.", revision: created.revision },
+        },
+        as(nia),
+      );
+
+      const history = await versions().$get(
+        {
+          param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: created.id },
+        },
+        as(nia),
+      );
+      const { versions: listed } = characterVersionListSchema.parse(await history.json());
+
+      expect(listed.map((entry) => entry.referenceImages.map((image) => image.assetId))).toEqual([
+        [],
+        [assetId],
+      ]);
+    });
+
+    it("refuses to pin an asset from another workspace, and stores no character", async () => {
+      const raviAsset = await uploadedAsset(ravi, raviWorkspaceId);
+
+      const response = await characters().$post(
+        {
+          param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId },
+          json: { name: "Borrowed", appearance: APPEARANCE, referenceAssetIds: [raviAsset] },
+        },
+        as(nia),
+      );
+
+      // The same answer an unknown id gets: a caller learns nothing about whether the asset
+      // they named is real.
+      expect(response.status).toBe(404);
+      const listed = await characters().$get(
+        { param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId } },
+        as(nia),
+      );
+      const { characters: cast } = characterListSchema.parse(await listed.json());
+      expect(cast.map((entry) => entry.name)).not.toContain("Borrowed");
+    });
+
+    it("refuses to pin an upload nobody confirmed", async () => {
+      // A pending asset has bytes nobody read (§26); pinning one would make an unchecked
+      // file a generation input.
+      const ticket = await client().api.v1.workspaces[":workspaceId"].assets.$post(
+        {
+          param: { workspaceId: niaWorkspaceId },
+          json: {
+            purpose: "character_reference",
+            contentType: "image/png",
+            byteSize: PNG_SIZE,
+            rightsConfirmed: true,
+          },
+        },
+        as(nia),
+      );
+      const { assetId } = assetUploadTicketSchema.parse(await ticket.json());
+
+      const response = await characters().$post(
+        {
+          param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId },
+          json: { name: "Unverified", appearance: APPEARANCE, referenceAssetIds: [assetId] },
+        },
+        as(nia),
+      );
+
+      expect(response.status).toBe(404);
+    });
   });
 });
