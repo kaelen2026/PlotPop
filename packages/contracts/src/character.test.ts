@@ -5,6 +5,8 @@ import {
   characterCreateInputSchema,
   characterListSchema,
   characterSchema,
+  characterVersionCreateInputSchema,
+  characterVersionListSchema,
 } from "./character.js";
 
 /**
@@ -104,5 +106,48 @@ describe("character create input", () => {
         appearance: "A".repeat(CHARACTER_APPEARANCE_MAX_LENGTH + 1),
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("character version create input", () => {
+  const input = { appearance: "Now with a shaved head.", revision: 2 };
+
+  it("carries the new appearance and the revision the caller read", () => {
+    expect(characterVersionCreateInputSchema.parse(input)).toEqual(input);
+  });
+
+  it("refuses one with no revision to check against", () => {
+    // §20.6: without it, the new version lands on top of a change nobody saw, and the
+    // person who made the earlier one never finds out.
+    const { revision: _revision, ...withoutRevision } = input;
+
+    expect(characterVersionCreateInputSchema.safeParse(withoutRevision).success).toBe(false);
+  });
+
+  it("holds the appearance to the same rules as the first version's", () => {
+    expect(
+      characterVersionCreateInputSchema.parse({ ...input, appearance: "  Trimmed.  " }).appearance,
+    ).toBe("Trimmed.");
+    expect(
+      characterVersionCreateInputSchema.safeParse({ ...input, appearance: "   " }).success,
+    ).toBe(false);
+    expect(
+      characterVersionCreateInputSchema.safeParse({
+        ...input,
+        appearance: "A".repeat(CHARACTER_APPEARANCE_MAX_LENGTH + 1),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("lists versions under a key, leaving room for a pagination cursor", () => {
+    const version = {
+      version: 1,
+      appearance: "As first written.",
+      createdAt: "2026-07-30T09:00:00.000Z",
+    };
+
+    expect(characterVersionListSchema.parse({ versions: [version] })).toEqual({
+      versions: [version],
+    });
   });
 });

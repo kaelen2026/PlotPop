@@ -74,3 +74,31 @@ export const characterCreateInputSchema = z.strictObject({
 });
 
 export type CharacterCreateInput = z.infer<typeof characterCreateInputSchema>;
+
+/**
+ * Adding a version to a character (§32.7).
+ *
+ * A creation rather than an edit: versions are append-only, because an episode that
+ * already generated with version 2 has to keep finding version 2. Nothing here ever
+ * rewrites one.
+ *
+ * The revision is the character's, and it is required for the same reason renaming a
+ * series requires one (§20.6): the appearance being replaced is the one the caller read,
+ * and without the check they would be adding a version on top of a change they never saw.
+ */
+export const characterVersionCreateInputSchema = z.strictObject({
+  appearance: characterAppearanceSchema,
+  revision: characterSchema.shape.revision,
+});
+
+export type CharacterVersionCreateInput = z.infer<typeof characterVersionCreateInputSchema>;
+
+/**
+ * A character's versions, newest first: the history §32.7 keeps so that a creator can see
+ * what an older episode was made with.
+ */
+export const characterVersionListSchema = z.strictObject({
+  versions: z.array(characterVersionSchema),
+});
+
+export type CharacterVersionList = z.infer<typeof characterVersionListSchema>;

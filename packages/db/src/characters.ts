@@ -1,4 +1,4 @@
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "./client.js";
 import { character, characterVersion, series, workspaceMember } from "./schema.js";
@@ -160,5 +160,137 @@ export async function createCharacter(
     if (version === undefined) return null;
 
     return { ...identity, currentVersion: version };
+  });
+}
+
+/** A character, and the version of it a caller is asking about. */
+export type CharacterScope = SeriesScope & {
+  readonly characterId: string;
+};
+
+export type CharacterVersionRecord = {
+  readonly version: number;
+  readonly appearance: string;
+  readonly createdAt: Date;
+};
+
+/**
+ * One character's versions, newest first — the history §32.7 keeps so a creator can see
+ * what an older episode was made with.
+ *
+ * Scoped through the series and the workspace like every other read here, so a character
+ * id from someone else's series has no history to show.
+ */
+export async function listCharacterVersions(
+  db: Database,
+  scope: CharacterScope,
+): Promise<CharacterVersionRecord[]> {
+  return db
+    .select({
+      version: characterVersion.version,
+      appearance: characterVersion.appearance,
+      createdAt: characterVersion.createdAt,
+    })
+    .from(characterVersion)
+    .innerJoin(character, eq(character.id, characterVersion.characterId))
+    .innerJoin(series, eq(series.id, character.seriesId))
+    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
+    .where(and(eq(character.id, scope.characterId), withinReachableSeries(scope)))
+    .orderBy(desc(characterVersion.version));
+}
+
+export type CharacterVersionAddition = CharacterScope & {
+  readonly appearance: string;
+  /** §20.6: the character's revision as the caller read it. */
+  readonly revision: number;
+};
+
+/**
+ * What happened to a new version.
+ *
+ * The same three outcomes as renaming a series, for the same reasons: `stale` is
+ * recoverable by reading again, while a character the caller may not see is always
+ * missing, so a stranger is never told they guessed a revision wrong.
+ */
+export type CharacterVersionResult =
+  | { readonly outcome: "versioned"; readonly character: CharacterRecord }
+  | { readonly outcome: "stale" }
+  | { readonly outcome: "missing" };
+
+/**
+ * Appends a version to a character, if the character is still at the revision the caller
+ * read.
+ *
+ * Nothing is ever rewritten: an episode generated with version 2 has to keep finding
+ * version 2 (§32.7), so the earlier rows are left exactly as they are.
+ *
+ * The conditional update on the identity comes first, and it is what makes this safe under
+ * concurrency: it takes the row's lock, so a second writer waits, then finds the revision
+ * has moved and is told `stale` rather than appending a second version 2. The
+ * `unique (character_id, version)` constraint is the backstop behind that, not the
+ * mechanism.
+ */
+export async function addCharacterVersion(
+  db: Database,
+  addition: CharacterVersionAddition,
+): Promise<CharacterVersionResult> {
+  return db.transaction(async (tx) => {
+    const reachable = tx
+      .select({ id: character.id })
+      .from(character)
+      .innerJoin(series, eq(series.id, character.seriesId))
+      .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
+      .where(and(eq(character.id, addition.characterId), withinReachableSeries(addition)));
+
+    const claimed = await tx
+      .update(character)
+      .set({ revision: sql`${character.revision} + 1`, updatedAt: new Date() })
+      .where(and(eq(character.revision, addition.revision), sql`${character.id} in (${reachable})`))
+      .returning({
+        id: character.id,
+        name: character.name,
+        revision: character.revision,
+        createdAt: character.createdAt,
+      });
+
+    const identity = claimed[0];
+
+    if (identity === undefined) {
+      /*
+       * Either the revision moved or the character is not the caller's to see. The
+       * classification read shares this transaction, so the answer describes one moment.
+       */
+      const existing = await tx
+        .select({ id: character.id })
+        .from(character)
+        .innerJoin(series, eq(series.id, character.seriesId))
+        .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
+        .where(and(eq(character.id, addition.characterId), withinReachableSeries(addition)))
+        .limit(1);
+
+      return existing[0] === undefined ? { outcome: "missing" } : { outcome: "stale" };
+    }
+
+    const previous = await tx
+      .select({ latest: max(characterVersion.version) })
+      .from(characterVersion)
+      .where(eq(characterVersion.characterId, identity.id));
+
+    const nextVersion = (previous[0]?.latest ?? 0) + 1;
+
+    const appended = await tx
+      .insert(characterVersion)
+      .values({ characterId: identity.id, version: nextVersion, appearance: addition.appearance })
+      .returning({
+        version: characterVersion.version,
+        appearance: characterVersion.appearance,
+        createdAt: characterVersion.createdAt,
+      });
+
+    const version = appended[0];
+
+    if (version === undefined) return { outcome: "missing" };
+
+    return { outcome: "versioned", character: { ...identity, currentVersion: version } };
   });
 }

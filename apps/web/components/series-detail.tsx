@@ -1,5 +1,4 @@
 import type { Character, Series } from "@plotpop/contracts";
-import { Badge } from "@plotpop/ui/components/ui/badge";
 import {
   Empty,
   EmptyDescription,
@@ -9,6 +8,7 @@ import {
 } from "@plotpop/ui/components/ui/empty";
 import { Users } from "lucide-react";
 import { CharacterCreateForm } from "@/components/character-create-form";
+import { CharacterRow } from "@/components/character-row";
 import { messages } from "@/locales/en";
 
 const COPY = messages.series.cast;
@@ -23,7 +23,8 @@ const CAST_HEADING_ID = "cast-heading";
  *
  * Each character shows which version is current, because §32.7 makes the version the
  * thing an episode locks: without it on screen, a creator cannot reason about why an
- * episode they made last month still looks the way it does.
+ * episode they made last month still looks the way it does. Editing and history belong to
+ * the row itself, which is a client component for that reason.
  */
 export function SeriesDetail({
   characters,
@@ -51,22 +52,12 @@ export function SeriesDetail({
         {hasCast ? (
           <ul aria-labelledby={CAST_HEADING_ID} className="flex flex-col">
             {characters.map((entry) => (
-              <li
-                className="flex flex-col gap-2 stroke-hairline-b py-4 last:border-b-0"
+              <CharacterRow
+                character={entry}
                 key={entry.id}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-heading-xs">{entry.name}</span>
-                  {/* Text, not a colour or a position: §6.8 requires a state to carry a
-                      label of its own. */}
-                  <Badge variant="secondary">
-                    {COPY.version} {entry.currentVersion.version}
-                  </Badge>
-                </div>
-                <p className="max-w-prose text-body-sm text-muted-foreground">
-                  {entry.currentVersion.appearance}
-                </p>
-              </li>
+                seriesId={series.id}
+                workspaceId={workspaceId}
+              />
             ))}
           </ul>
         ) : (
