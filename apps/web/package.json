@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@next/env": "^16.2.12",
+    "@plotpop/api-client": "workspace:*",
     "@plotpop/config": "workspace:*",
     "@plotpop/contracts": "workspace:*",
     "@plotpop/ui": "workspace:*",

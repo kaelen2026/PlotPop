@@ -3,6 +3,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prototypeEpisodes } from "@/lib/prototype-episodes";
+import { messages } from "@/locales/en";
 import { stubBrowserEnvironment } from "@/test/browser-environment";
 import CreatorHomePage from "./page";
 
@@ -15,6 +16,8 @@ describe("creator home route", () => {
     // directly, since that is the component which can be given either one.
     render(<CreatorHomePage />);
 
-    expect(screen.getAllByRole("listitem")).toHaveLength(prototypeEpisodes.length);
+    const list = screen.getByRole("list", { name: messages.creatorHome.episodes.heading });
+
+    expect(list.querySelectorAll("li")).toHaveLength(prototypeEpisodes.length);
   });
 });

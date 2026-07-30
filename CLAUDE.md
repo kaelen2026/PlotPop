@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**F-01 与 F-02 已完成，F-03 进行中。Web 侧有可点击原型但还不连业务 API；服务端刚有鉴权，业务表与业务路由仍未建立。**
+**F-01 与 F-02 已完成，F-03 与 F-04 进行中。第一条真实业务链路已经通了：`/series` 从浏览器经 API 读写 PostgreSQL，其余页面仍是占位数据。**
 
 F-01 已全部完成：
 
@@ -34,15 +34,23 @@ F-01 已全部完成：
 - Session 中间件与 Workspace 隔离：`/api/v1/workspaces`、`/current`、`/:workspaceId`。归属条件写在查询里（`listWorkspacesForUser`、`findWorkspaceForMember`），别人的 Workspace 一律 404 而非 403。
 - Web `/sign-in`、`/sign-up`，以及 `next.config.ts` 里 `/api/*` 的同源 Rewrite（ADR-007）。表单用 `packages/contracts` 的同一组 Zod Schema 校验。
 
-**F-03 尚未做**：邮箱验证邮件与账户恢复、社交登录、账户级主题偏好与跨设备同步（`docs/design-system.md` §5.1）、Creator Home 页面、`/api/v1/workspaces` 的写操作（因此跨 Workspace **写**拒绝还没有端到端测试；`requireSession` 与归属查询本身与方法无关）。
+**F-03 尚未做**：邮箱验证邮件与账户恢复、社交登录、账户级主题偏好与跨设备同步（`docs/design-system.md` §5.1）、Creator Home 页面、`/api/v1/workspaces` 自身的写操作。跨 Workspace **写**拒绝现在有端到端测试了 —— 由 F-04.01 的 `POST .../series` 覆盖。
+
+**F-04 进行中：**
+
+- F-04.01：系列的创建与列表。`seriesSchema` / `seriesListSchema` / `seriesCreateInputSchema` 进 `packages/contracts`；迁移 `0002_series.sql` 与 `packages/db/src/series.ts`；`/api/v1/workspaces/:workspaceId/series` 的 GET 与 POST；Web `/series` 是**第一个读真实数据的页面**。§6.1 里只落了名字 —— 角色、声音、风格手册与默认生成设置随后续切片，一列没有页面能写的字段，含义会被第一个碰它的人决定。
+  - 归属条件写在查询里：`listSeriesForWorkspace` 用 `workspace_member` 内连接，`createSeries` 在同一事务里先确认成员身份、再用**校验查询返回的** workspace id 写入。别人的 Workspace 一律 404 而非 403，读写都是。
+  - 服务端渲染读数据经 `apps/web/lib/api-server.ts`（手动转发 Cookie —— 服务端渲染是另一个请求，没人替它带上），浏览器写数据经 `apps/web/lib/api-client.ts`（base url 为空，走同源 Rewrite）。写成功后 `router.refresh()` 让服务端重读，表单不留第二份列表。
+  - `statusOf()` 的存在是因为 Hono 不把中间件的响应折进路由类型：RPC 客户端以为业务路由只会返回 200，拿它和 401 比较是类型错误。要区分「没登录」和「坏了」就得把状态读成 number。
+  - AppShell 长出导航（Home / Series），当前页由 `aria-current="page"` 与字重表达，不只靠颜色（§15）。
 
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
-尚不存在：`packages/domain`、`packages/providers`、`packages/testkit`、Outbox 与队列、优雅停机（属 §16）。测试工厂目前放在各自的测试里；`packages/testkit` 在第一个需要跨 workspace 共享工厂的切片里建立。
+尚不存在：`packages/domain`、`packages/providers`、`packages/testkit`、Outbox 与队列、优雅停机（属 §16）。测试工厂目前放在各自的测试里，包内共享的放包自己的 `testing/`（`@plotpop/db/testing` 的 `identityFixtureSource`）；`packages/testkit` 在第一个需要跨 workspace 共享工厂的切片里建立。
 
 Web 侧的原型边界，动手前要知道：
 
-- **所有页面数据都是占位的**，来自 `apps/web/lib/prototype-*.ts`。Web 不读数据库（ADR-001），真实数据要等 F-04 / F-05 的 API；接上时删掉这些文件。
+- **除 `/series` 之外，页面数据都是占位的**，来自 `apps/web/lib/prototype-*.ts`。Web 不读数据库（ADR-001），真实数据要等 F-04 / F-05 的 API；接上时删掉这些文件。`/series` 是接法的样板：Server Component 读、客户端表单写、写完 `router.refresh()`。
 - 向导只有脚本步骤有表单，其余四步可走通但只展示该步要做什么。
 - Studio 做到浏览与时间线。**镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口不在这里** —— 前两项已移交 F-11（见上），后两项属 F-06 / F-09。
 - §12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**。

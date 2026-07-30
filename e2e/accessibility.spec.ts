@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { signUpThroughApi, testAccount } from "./support/session";
 import { seedThemePreference, THEME_ATTRIBUTE, themeOption, themeSwitcher } from "./support/theme";
 
 /**
@@ -20,12 +21,17 @@ const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
  * Every page that exists, audited in both themes at both tiers. §18 says "key
  * pages", and while the product is this small that is all of them — a list that
  * has to be remembered is a list that goes stale.
+ *
+ * A page behind a session says so, and gets a real account rather than an injected
+ * cookie: a page that redirects to sign in would otherwise be audited as the sign-in
+ * page and pass while nobody was looking at it.
  */
 const PAGES = [
   { name: "the landing page", path: "/" },
   { name: "the sign-in page", path: "/sign-in" },
   { name: "the sign-up page", path: "/sign-up" },
   { name: "Creator Home", path: "/home" },
+  { name: "the series library", path: "/series", session: true },
   { name: "the creation wizard", path: "/episodes/new" },
   { name: "the Episode Studio", path: "/episodes/prototype-3" },
 ] as const;
@@ -45,12 +51,16 @@ async function auditWcag(page: Page): Promise<void> {
 }
 
 test.describe("every page passes an automated WCAG audit", () => {
-  for (const { name, path } of PAGES) {
+  for (const entry of PAGES) {
+    const { name, path } = entry;
+    const needsSession = "session" in entry && entry.session;
+
     for (const theme of ["light", "dark"] as const) {
       test(`${name} in the ${theme} theme`, async ({ page }) => {
         // §6.6 verifies the token pairs; this verifies what the browser actually
         // composited, including any contrast the tokens cannot predict.
         await seedThemePreference(page, theme);
+        if (needsSession) await signUpThroughApi(page, testAccount("axe"));
         await page.goto(path);
         // Waits for the main landmark rather than the theme switcher: the Studio
         // has its own top bar (§8.3) and does not carry the shell.

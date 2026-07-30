@@ -1,10 +1,8 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { coreMigrationSource } from "./migration-source.js";
-import { applyMigrations, type MigrationSource } from "./migrations.js";
+import { applyMigrations } from "./migrations.js";
 import { creditAccount, workspace, workspaceMember } from "./schema.js";
+import { identityFixtureSource } from "./testing/identity.js";
 import { createTestDatabase, type TestDatabase } from "./testing/temp-database.js";
 import { provisionDefaultWorkspace, type WorkspaceOwner } from "./workspaces.js";
 
@@ -17,22 +15,10 @@ import { provisionDefaultWorkspace, type WorkspaceOwner } from "./workspaces.js"
  * it is a user whose series quietly live somewhere they cannot reach.
  *
  * The `user` table these tables reference belongs to Better Auth's migration
- * boundary (ADR-007), so it is stood up here from the only part of it this package
- * depends on: a text primary key. Applying both real sources in order is the api's
- * test, since the api is what owns their order.
+ * boundary (ADR-007), so `identityFixtureSource` stands up the only part of it this
+ * package depends on. Applying both real sources in order is the api's test, since
+ * the api is what owns their order.
  */
-async function identityFixtureSource(): Promise<MigrationSource> {
-  const directory = await mkdtemp(join(tmpdir(), "plotpop-identity-"));
-
-  await writeFile(
-    join(directory, "0001_user.sql"),
-    'create table "user" (id text primary key, name text not null, email text not null unique);',
-    "utf8",
-  );
-
-  return { name: "auth", directory };
-}
-
 async function migratedDatabase(): Promise<TestDatabase> {
   const database = await createTestDatabase();
   await applyMigrations(database.db, [await identityFixtureSource(), coreMigrationSource]);

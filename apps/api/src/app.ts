@@ -3,6 +3,7 @@ import type { HealthResponse } from "@plotpop/contracts";
 import type { Database } from "@plotpop/db";
 import type { ReadinessReporter } from "@plotpop/observability";
 import { Hono } from "hono";
+import { createSeriesRoutes } from "./routes/series.js";
 import { createWorkspaceRoutes } from "./routes/workspaces.js";
 
 const liveness: HealthResponse = { status: "ok", service: "api" };
@@ -39,6 +40,15 @@ export function createApp({ readiness, auth, db }: AppDependencies) {
       .on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw))
       // Versioned business routes (§18.2). Everything under here needs a session.
       .route("/api/v1/workspaces", createWorkspaceRoutes({ db, auth }))
+      /*
+       * A workspace's series hang off the workspace that owns them
+       * (`/api/v1/workspaces/:workspaceId/series`) rather than a top level
+       * `/series`, so no handler can reach one without naming its workspace (§20.1).
+       *
+       * A second router on the same prefix, because the workspace id is a parameter
+       * these handlers have to see typed; `routes/series.ts` says why.
+       */
+      .route("/api/v1/workspaces", createSeriesRoutes({ db, auth }))
   );
 }
 

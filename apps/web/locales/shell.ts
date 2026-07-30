@@ -4,4 +4,9 @@
  */
 export const shell = {
   skipToContent: "Skip to content",
+  nav: {
+    label: "Main",
+    creatorHome: "Home",
+    series: "Series",
+  },
 } as const;
