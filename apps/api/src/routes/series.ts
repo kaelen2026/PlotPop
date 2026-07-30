@@ -1,15 +1,22 @@
 import { zValidator } from "@hono/zod-validator";
 import type { AuthService } from "@plotpop/auth";
-import { type Series, seriesCreateInputSchema, workspaceSchema } from "@plotpop/contracts";
+import {
+  type Series,
+  seriesCreateInputSchema,
+  seriesRenameInputSchema,
+  seriesSchema,
+  workspaceSchema,
+} from "@plotpop/contracts";
 import {
   createSeries,
   type Database,
   findWorkspaceForMember,
   listSeriesForWorkspace,
+  renameSeries,
   type SeriesRecord,
 } from "@plotpop/db";
 import { Hono } from "hono";
-import { notFound, validationFailed } from "../errors.js";
+import { notFound, revisionConflict, validationFailed } from "../errors.js";
 import { requireSession, type SessionEnv } from "../middleware/session.js";
 
 export type SeriesRouteDependencies = {
@@ -36,6 +43,13 @@ function toPayload(record: SeriesRecord): Series {
  */
 function parseWorkspaceId(value: string): string | null {
   const parsed = workspaceSchema.shape.id.safeParse(value);
+
+  return parsed.success ? parsed.data : null;
+}
+
+/** The same reasoning for the series' own id. */
+function parseSeriesId(value: string): string | null {
+  const parsed = seriesSchema.shape.id.safeParse(value);
 
   return parsed.success ? parsed.data : null;
 }
@@ -103,6 +117,38 @@ export function createSeriesRoutes({ db, auth }: SeriesRouteDependencies) {
         if (created === null) return c.json(notFound(), 404);
 
         return c.json(toPayload(created), 201);
+      },
+    )
+    .patch(
+      "/:workspaceId/series/:seriesId",
+      zValidator("json", seriesRenameInputSchema, (result, c) =>
+        result.success ? undefined : c.json(validationFailed(), 400),
+      ),
+      async (c) => {
+        const workspaceId = parseWorkspaceId(c.req.param("workspaceId"));
+        const seriesId = parseSeriesId(c.req.param("seriesId"));
+
+        if (workspaceId === null || seriesId === null) return c.json(notFound(), 404);
+
+        const rename = c.req.valid("json");
+        const result = await renameSeries(db, {
+          workspaceId,
+          userId: c.var.user.id,
+          seriesId,
+          name: rename.name,
+          revision: rename.revision,
+        });
+
+        /*
+         * The repository's three outcomes map onto three answers. `stale` is a `409`
+         * the caller can act on — read the series again and decide what to do about
+         * the change someone else made — while a series they may not see is missing,
+         * so a stranger is never told they guessed a revision wrong.
+         */
+        if (result.outcome === "missing") return c.json(notFound(), 404);
+        if (result.outcome === "stale") return c.json(revisionConflict(), 409);
+
+        return c.json(toPayload(result.series), 200);
       },
     );
 }

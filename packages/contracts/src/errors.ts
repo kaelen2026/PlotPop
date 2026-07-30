@@ -24,8 +24,12 @@ export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
  * What the caller can do about it, so a client does not have to infer intent from
  * a status code. The vocabulary is deliberately small and grows when a route needs
  * a genuinely different recovery.
+ *
+ * `reload` is that case: a revision conflict (§20.6) cannot be fixed by sending the
+ * same request again, which is what `retry` invites. The caller has to read the
+ * record as it now stands and decide what to do with the change someone else made.
  */
-export const apiErrorActionSchema = z.enum(["none", "retry", "sign_in"]);
+export const apiErrorActionSchema = z.enum(["none", "retry", "reload", "sign_in"]);
 
 export type ApiErrorAction = z.infer<typeof apiErrorActionSchema>;
 

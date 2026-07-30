@@ -3,6 +3,7 @@ import {
   SERIES_NAME_MAX_LENGTH,
   seriesCreateInputSchema,
   seriesListSchema,
+  seriesRenameInputSchema,
   seriesSchema,
 } from "./series.js";
 
@@ -83,6 +84,38 @@ describe("series create input", () => {
     // column stores would look like it worked.
     expect(
       seriesCreateInputSchema.safeParse({ name: "Rooftop Confessions", revision: 1 }).success,
+    ).toBe(false);
+  });
+});
+
+describe("series rename input", () => {
+  it("carries the new name and the revision the caller read", () => {
+    expect(seriesRenameInputSchema.parse({ name: "Rooftop Confessions", revision: 3 })).toEqual({
+      name: "Rooftop Confessions",
+      revision: 3,
+    });
+  });
+
+  it("refuses a rename with no revision to check against", () => {
+    // §20.6: without one, the update overwrites whatever someone else changed in the
+    // meantime, and nobody finds out. It is required rather than defaulted, because a
+    // default would be this contract inventing a value it cannot know.
+    expect(seriesRenameInputSchema.safeParse({ name: "Rooftop Confessions" }).success).toBe(false);
+    expect(
+      seriesRenameInputSchema.safeParse({ name: "Rooftop Confessions", revision: 0 }).success,
+    ).toBe(false);
+  });
+
+  it("holds the new name to the same rules as a created one", () => {
+    expect(seriesRenameInputSchema.parse({ name: "  Midnight Diner  ", revision: 1 }).name).toBe(
+      "Midnight Diner",
+    );
+    expect(seriesRenameInputSchema.safeParse({ name: "   ", revision: 1 }).success).toBe(false);
+    expect(
+      seriesRenameInputSchema.safeParse({
+        name: "A".repeat(SERIES_NAME_MAX_LENGTH + 1),
+        revision: 1,
+      }).success,
     ).toBe(false);
   });
 });

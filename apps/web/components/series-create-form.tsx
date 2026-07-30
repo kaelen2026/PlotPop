@@ -10,6 +10,7 @@ import { browserApi } from "@/lib/api-client";
 import { messages } from "@/locales/en";
 
 const COPY = messages.series.create;
+const NAME = messages.series.name;
 
 /**
  * Creating a series from the library page.
@@ -43,9 +44,7 @@ export function SeriesCreateForm({ workspaceId }: { workspaceId: string }) {
     if (!parsed.success) {
       const issue = parsed.error.issues.find((candidate) => candidate.path[0] === "name");
 
-      setNameError(
-        issue?.code === "too_big" ? COPY.name.errors.tooLong : COPY.name.errors.required,
-      );
+      setNameError(issue?.code === "too_big" ? NAME.errors.tooLong : NAME.errors.required);
 
       return;
     }
@@ -84,7 +83,7 @@ export function SeriesCreateForm({ workspaceId }: { workspaceId: string }) {
       ) : null}
 
       <Field data-invalid={nameError !== undefined}>
-        <FieldLabel htmlFor={nameId}>{COPY.name.label}</FieldLabel>
+        <FieldLabel htmlFor={nameId}>{NAME.label}</FieldLabel>
         <Input
           aria-describedby={nameError === undefined ? undefined : errorId}
           aria-invalid={nameError !== undefined}
@@ -93,7 +92,7 @@ export function SeriesCreateForm({ workspaceId }: { workspaceId: string }) {
           onChange={(event) => setName(event.target.value)}
           value={name}
         />
-        <FieldDescription>{COPY.name.description}</FieldDescription>
+        <FieldDescription>{COPY.description}</FieldDescription>
         {/* `announce` off: the field is one of one, so a live region here would
             duplicate what the label and the message already say. */}
         <FieldError id={errorId} announce={false}>

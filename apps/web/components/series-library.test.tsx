@@ -39,12 +39,13 @@ describe("series library", () => {
 
     // A real list, so assistive technology announces how many there are. The api
     // orders it newest first; the component does not reorder what it was handed.
-    const items = screen.getByRole("list", { name: COPY.list.heading }).querySelectorAll("li");
+    const items = screen.getAllByRole("listitem");
 
-    expect([...items].map((item) => item.textContent)).toEqual([
-      "Midnight Diner",
-      "Rooftop Confessions",
-    ]);
+    expect(items).toHaveLength(2);
+    // Asserted as containment rather than equality: a row carries its own rename
+    // control, and this test is about which series appear and in what order.
+    expect(items[0]).toHaveTextContent("Midnight Diner");
+    expect(items[1]).toHaveTextContent("Rooftop Confessions");
   });
 
   it("offers the empty state instead of an empty list on a new account", () => {
