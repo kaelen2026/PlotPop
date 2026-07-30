@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useId, useState } from "react";
 import { browserApi } from "@/lib/api-client";
 import { messages } from "@/locales/en";
+import { type PendingImage, ReferenceImageField, releasePreviews } from "./reference-image-field";
 
 const COPY = messages.series.cast.create;
 
@@ -46,6 +47,11 @@ export function CharacterCreateForm({
   const [name, setName] = useState("");
   const [appearance, setAppearance] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+  /*
+   * Uploaded and confirmed before this form submits, because the version row this creates is
+   * never rewritten — an image cannot be attached to it afterwards (§32.7).
+   */
+  const [images, setImages] = useState<readonly PendingImage[]>([]);
   const [failed, setFailed] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -53,7 +59,11 @@ export function CharacterCreateForm({
     event.preventDefault();
     setFailed(false);
 
-    const parsed = characterCreateInputSchema.safeParse({ name, appearance });
+    const parsed = characterCreateInputSchema.safeParse({
+      name,
+      appearance,
+      referenceAssetIds: images.map((image) => image.assetId),
+    });
 
     if (!parsed.success) {
       const found: FieldErrors = {};
@@ -87,8 +97,12 @@ export function CharacterCreateForm({
     setPending(false);
 
     if (response.status !== 201) {
-      // Both fields keep what was typed. Losing a paragraph of appearance description to
-      // a failed request is how a tool teaches people to draft somewhere else first.
+      /*
+       * Both fields keep what was typed, and the images stay too. Losing a paragraph of
+       * appearance description to a failed request is how a tool teaches people to draft
+       * somewhere else first — and the uploads already succeeded, so making someone repeat
+       * them because our insert failed would be charging them for our problem.
+       */
       setFailed(true);
 
       return;
@@ -96,6 +110,10 @@ export function CharacterCreateForm({
 
     setName("");
     setAppearance("");
+    // Emptied with the fields: a second character inheriting the first one's photograph is
+    // the kind of mistake nobody would think to look for.
+    releasePreviews(images);
+    setImages([]);
     router.refresh();
   }
 
@@ -141,6 +159,13 @@ export function CharacterCreateForm({
           {errors.appearance}
         </FieldError>
       </Field>
+
+      <ReferenceImageField
+        characterName={name}
+        images={images}
+        onChange={setImages}
+        workspaceId={workspaceId}
+      />
 
       <div className="flex">
         <Button disabled={pending} type="submit">

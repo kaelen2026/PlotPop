@@ -13,6 +13,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 const post = vi.fn();
+const uploadAsset = vi.fn();
+
+vi.mock("@/lib/asset-upload", () => ({
+  uploadAsset: (...args: unknown[]) => uploadAsset(...args),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   browserApi: {
@@ -69,6 +74,7 @@ describe("character create form", () => {
   beforeEach(() => {
     refresh.mockReset();
     post.mockReset();
+    uploadAsset.mockReset();
     post.mockResolvedValue(created());
   });
 
@@ -174,5 +180,121 @@ describe("character create form", () => {
     expect(post).toHaveBeenCalledTimes(1);
 
     release?.();
+  });
+
+  /**
+   * Reference images on the first version (§32.1).
+   *
+   * The gap this closes: until now a character could only get a photograph by being created
+   * from words and then edited, because the upload lived on the edit form alone. The ordering
+   * is the same either way — an asset is uploaded and confirmed before the version that
+   * references it exists, since a version row is never rewritten.
+   */
+  describe("reference images", () => {
+    const ASSET_ID = "6d0b2f19-3a5c-4e8e-9b2a-71f0c4d5e6a7";
+    const IMAGE_COPY = messages.series.cast.referenceImages;
+
+    function pngFile(): File {
+      return new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "ada.png", {
+        type: "image/png",
+      });
+    }
+
+    async function chooseImage(): Promise<void> {
+      await userEvent.click(screen.getByLabelText(IMAGE_COPY.rights));
+      await userEvent.upload(screen.getByLabelText(IMAGE_COPY.label), pngFile());
+    }
+
+    it("will not upload before the right to use the file is confirmed", async () => {
+      // §195, §733. Disabled rather than validated afterwards, so nothing is ever sent
+      // without the confirmation existing first.
+      form();
+
+      expect(screen.getByLabelText(IMAGE_COPY.label)).toBeDisabled();
+
+      await userEvent.click(screen.getByLabelText(IMAGE_COPY.rights));
+
+      expect(screen.getByLabelText(IMAGE_COPY.label)).toBeEnabled();
+      expect(uploadAsset).not.toHaveBeenCalled();
+    });
+
+    it("pins the uploaded image to the character's first version", async () => {
+      uploadAsset.mockResolvedValue({ outcome: "uploaded", assetId: ASSET_ID });
+      form();
+
+      await userEvent.type(screen.getByLabelText(COPY.name.label), "Ada");
+      await userEvent.type(screen.getByLabelText(COPY.appearance.label), APPEARANCE);
+      await chooseImage();
+
+      expect(uploadAsset).toHaveBeenCalledWith(expect.any(File), { workspaceId: WORKSPACE_ID });
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
+
+      expect(post).toHaveBeenCalledWith({
+        param: { workspaceId: WORKSPACE_ID, seriesId: SERIES_ID },
+        json: { name: "Ada", appearance: APPEARANCE, referenceAssetIds: [ASSET_ID] },
+      });
+    });
+
+    it("describes an image chosen before the name is typed", async () => {
+      /*
+       * The alternative text cannot name a character that has none yet, and "Reference image 1
+       * for " with nothing after it is worse than a generic phrase.
+       */
+      uploadAsset.mockResolvedValue({ outcome: "uploaded", assetId: ASSET_ID });
+      form();
+
+      await chooseImage();
+
+      expect(await screen.findByAltText(IMAGE_COPY.altNew(1))).toBeInTheDocument();
+    });
+
+    it("empties the images along with the fields, so the next character starts clean", async () => {
+      // A second character inheriting the first one's photograph is the kind of mistake
+      // nobody would look for.
+      uploadAsset.mockResolvedValue({ outcome: "uploaded", assetId: ASSET_ID });
+      form();
+
+      await userEvent.type(screen.getByLabelText(COPY.name.label), "Ada");
+      await userEvent.type(screen.getByLabelText(COPY.appearance.label), APPEARANCE);
+      await chooseImage();
+      await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
+
+      expect(screen.queryByAltText(IMAGE_COPY.alt("Ada", 1))).not.toBeInTheDocument();
+      expect(screen.queryByAltText(IMAGE_COPY.altNew(1))).not.toBeInTheDocument();
+    });
+
+    it("keeps the image when the request fails, like it keeps the typed fields", async () => {
+      // The upload already succeeded; making the creator do it again because the character
+      // insert failed would be charging them for our problem.
+      uploadAsset.mockResolvedValue({ outcome: "uploaded", assetId: ASSET_ID });
+      post.mockResolvedValue({ status: 500, json: async () => ({}) });
+      form();
+
+      await userEvent.type(screen.getByLabelText(COPY.name.label), "Ada");
+      await userEvent.type(screen.getByLabelText(COPY.appearance.label), APPEARANCE);
+      await chooseImage();
+      await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(COPY.failed);
+      expect(screen.getByAltText(IMAGE_COPY.alt("Ada", 1))).toBeInTheDocument();
+    });
+
+    it("says which kind of file was refused, and creates nothing with it", async () => {
+      uploadAsset.mockResolvedValue({ outcome: "failed", reason: "unsupported" });
+      form();
+
+      await userEvent.type(screen.getByLabelText(COPY.name.label), "Ada");
+      await userEvent.type(screen.getByLabelText(COPY.appearance.label), APPEARANCE);
+      await chooseImage();
+
+      expect(await screen.findByText(IMAGE_COPY.errors.unsupported)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
+
+      expect(post).toHaveBeenCalledWith(
+        expect.objectContaining({ json: expect.objectContaining({ referenceAssetIds: [] }) }),
+      );
+    });
   });
 });

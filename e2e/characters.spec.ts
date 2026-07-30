@@ -30,6 +30,7 @@ const COPY = {
   referenceImage: "Reference image",
   rights: "I have the right to use this image.",
   imageAlt: "Reference image 1 for Ada",
+  imageAltNew: "Reference image 1 for the new character",
   unsupportedImage: "That file is not a PNG, JPEG or WebP image.",
 } as const;
 
@@ -286,4 +287,47 @@ test("a file that is not the image it claims to be is refused", async ({ page })
   await cast.getByRole("button", { name: COPY.saveVersion }).click();
   await expect(cast).toContainText("Version 2");
   await expect(cast.getByAltText(COPY.imageAlt)).toBeHidden();
+});
+
+/*
+ * The gap closed by giving the create form its own upload: until now the only way to get a
+ * photograph onto a character was to create it from words and then edit it, which meant
+ * version 1 could never have one. An episode generated from version 1 therefore had nothing
+ * to look at.
+ */
+test("a character can be created with its reference image already attached", async ({ page }) => {
+  await signUpThroughApi(page, testAccount("create-with-image"));
+  const seriesId = await createSeriesThroughApi(page, "Illustrated From The Start");
+
+  await page.goto(`/series/${seriesId}`);
+
+  // The image is chosen before the character exists, so it is named for a character that has
+  // no name yet.
+  await page.getByLabel(COPY.rights).click();
+  await page
+    .getByLabel(COPY.referenceImage)
+    .setInputFiles({ name: "ada.png", mimeType: "image/png", buffer: ONE_PIXEL_PNG });
+  await expect(page.getByAltText(COPY.imageAltNew)).toBeVisible();
+
+  await page.getByLabel(COPY.characterName).fill("Ada");
+  await page.getByLabel(COPY.appearance).fill(APPEARANCE);
+  await page.getByRole("button", { name: COPY.addCharacter }).click();
+
+  const cast = page.getByRole("list", { name: COPY.castHeading });
+  await expect(cast).toContainText("Ada");
+  // Version 1, not 2: the image arrived with the character rather than after it.
+  await expect(cast).toContainText("Version 1");
+
+  await page.reload();
+  const reloaded = page.getByRole("list", { name: COPY.castHeading });
+  const image = reloaded.getByAltText(COPY.imageAlt);
+  await expect(image).toBeVisible();
+
+  // The bytes, through the signed url the payload handed back.
+  const served = await page.request.get((await image.getAttribute("src")) as string);
+  expect(served.status()).toBe(200);
+  expect((await served.body()).equals(ONE_PIXEL_PNG)).toBe(true);
+
+  // And the form is clean for the next one, so a second character cannot inherit this image.
+  await expect(page.getByAltText(COPY.imageAltNew)).toBeHidden();
 });
