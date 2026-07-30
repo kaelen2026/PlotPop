@@ -27,7 +27,27 @@ const COPY = {
   showHistory: "Earlier versions",
   historyHeading: "Version history",
   conflict: "This character changed somewhere else.",
+  referenceImage: "Reference image",
+  rights: "I have the right to use this image.",
+  imageAlt: "Reference image 1 for Ada",
+  unsupportedImage: "That file is not a PNG, JPEG or WebP image.",
 } as const;
+
+/**
+ * A 1x1 transparent PNG, and twelve bytes of HEIC header.
+ *
+ * Inline rather than committed as files: the bytes that matter are the signature at the
+ * front, and a reviewer can see them here instead of taking a binary on trust.
+ */
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+/** `ftypheic` at offset four — what a renamed phone photograph actually starts with. */
+const HEIC_HEADER = Buffer.from([
+  0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63,
+]);
 
 const APPEARANCE = "Mid twenties, cropped black hair, round glasses, oversized grey coat.";
 
@@ -174,4 +194,96 @@ test("an edit from a page that has gone stale is refused, not applied", async ({
   await expect(reloaded).toContainText("Version 2");
   await expect(reloaded).toContainText("Changed elsewhere.");
   await expect(page.getByText("From the open editor.")).toBeHidden();
+});
+
+/*
+ * §26's upload chain, and the only place it is exercised for real.
+ *
+ * `.claude/rules/tdd.md` §6 makes object storage a mocked boundary, so every other layer
+ * runs against an in-memory store. What that cannot prove is the part that is entirely
+ * configuration: the api signs a url for an origin the browser can reach, MinIO accepts a
+ * cross-origin PUT carrying exactly the signed length and type, and the signed GET that
+ * comes back in the payload actually serves the bytes. None of that fails in a unit test.
+ */
+test("a reference image uploaded in the browser reaches storage and comes back", async ({
+  page,
+}) => {
+  await signUpThroughApi(page, testAccount("reference-image"));
+  const seriesId = await createSeriesThroughApi(page, "Illustrated Series");
+
+  await page.goto(`/series/${seriesId}`);
+  await page.getByLabel(COPY.characterName).fill("Ada");
+  await page.getByLabel(COPY.appearance).fill(APPEARANCE);
+  await page.getByRole("button", { name: COPY.addCharacter }).click();
+
+  const cast = page.getByRole("list", { name: COPY.castHeading });
+  await expect(cast).toContainText("Version 1");
+
+  await cast.getByRole("button", { name: COPY.updateAppearance }).click();
+
+  // §195, §733: the picker is disabled until the creator confirms they hold the rights.
+  const picker = cast.getByLabel(COPY.referenceImage);
+  await expect(picker).toBeDisabled();
+  await cast.getByLabel(COPY.rights).click();
+  await expect(picker).toBeEnabled();
+
+  await picker.setInputFiles({ name: "ada.png", mimeType: "image/png", buffer: ONE_PIXEL_PNG });
+
+  // The upload finishes before the version is saved, because a version row is never
+  // rewritten and so cannot have an image attached afterwards.
+  await expect(cast.getByAltText(COPY.imageAlt)).toBeVisible();
+
+  await cast.getByRole("button", { name: COPY.saveVersion }).click();
+  await expect(cast).toContainText("Version 2");
+
+  // Reloaded, so the image on screen was read back from the database and re-signed rather
+  // than left over from the form.
+  await page.reload();
+  const reloaded = page.getByRole("list", { name: COPY.castHeading });
+  const image = reloaded.getByAltText(COPY.imageAlt);
+  await expect(image).toBeVisible();
+
+  /*
+   * The bytes, fetched through the signed url the payload handed over. This is the assertion
+   * the mocked layers cannot make: it fails if the signature is wrong, if the host was signed
+   * for an address the browser cannot resolve, or if the object never arrived.
+   */
+  const source = await image.getAttribute("src");
+  const served = await page.request.get(source as string);
+
+  expect(served.status()).toBe(200);
+  expect(served.headers()["content-type"]).toBe("image/png");
+  expect((await served.body()).equals(ONE_PIXEL_PNG)).toBe(true);
+});
+
+test("a file that is not the image it claims to be is refused", async ({ page }) => {
+  /*
+   * The mistake this whole confirmation step exists for, driven through a browser: the
+   * declared type comes from the extension, so only reading the bytes catches it. Renaming
+   * a HEIC photograph to `.png` is an ordinary thing to do on a Mac.
+   */
+  await signUpThroughApi(page, testAccount("reference-image-refused"));
+  const seriesId = await createSeriesThroughApi(page, "Refused Upload");
+
+  await page.goto(`/series/${seriesId}`);
+  await page.getByLabel(COPY.characterName).fill("Ada");
+  await page.getByLabel(COPY.appearance).fill(APPEARANCE);
+  await page.getByRole("button", { name: COPY.addCharacter }).click();
+
+  const cast = page.getByRole("list", { name: COPY.castHeading });
+  await cast.getByRole("button", { name: COPY.updateAppearance }).click();
+  await cast.getByLabel(COPY.rights).click();
+
+  await cast
+    .getByLabel(COPY.referenceImage)
+    .setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: HEIC_HEADER });
+
+  // A sentence about the file, not "something went wrong": the creator has to know which
+  // file to change.
+  await expect(cast.getByText(COPY.unsupportedImage)).toBeVisible();
+
+  // And saving still works — it just carries no image, because none was accepted.
+  await cast.getByRole("button", { name: COPY.saveVersion }).click();
+  await expect(cast).toContainText("Version 2");
+  await expect(cast.getByAltText(COPY.imageAlt)).toBeHidden();
 });

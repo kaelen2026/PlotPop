@@ -82,6 +82,37 @@ export const series = {
       pending: "Adding…",
       failed: "We could not add that character. Please try again.",
     },
+    /**
+     * Reference images (§32.1). A new version states its own images in full, so the copy has
+     * to make clear that removing one is an edit going forward rather than a deletion — the
+     * episodes made from the earlier version keep looking at what they were made from.
+     */
+    referenceImages: {
+      label: "Reference image",
+      description: "PNG, JPEG or WebP, up to 10 MB. Added to the new version you are saving.",
+      /** §195, §733: the creator has to confirm they hold the rights to what they upload. */
+      rights: "I have the right to use this image.",
+      rightsRequired: "Confirm you have the right to use this image.",
+      /** Shown above the images the new version will keep, so removing one is deliberate. */
+      keeping: "Kept on the new version",
+      /**
+       * Alternative text has to say which character the image shows: a screen reader user
+       * moving down a cast of ten would otherwise hear "reference image" ten times.
+       *
+       * The first copy in this project that interpolates, so `locales/en.test.ts` grew a
+       * case for it — a function is copy too, and the gate has to see inside it.
+       */
+      alt: (characterName: string, position: number) =>
+        `Reference image ${position} for ${characterName}`,
+      remove: "Remove",
+      uploading: "Uploading…",
+      errors: {
+        tooLarge: "That file is larger than 10 MB. Choose a smaller image.",
+        unsupported: "That file is not a PNG, JPEG or WebP image. Choose a different one.",
+        failed: "We could not upload that image. Please try again.",
+        tooMany: "A version can carry up to 4 reference images.",
+      },
+    },
     /** Editing a character produces a new version rather than replacing the old one (§32.7). */
     update: {
       action: "Update appearance",

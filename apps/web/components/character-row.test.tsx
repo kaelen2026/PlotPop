@@ -15,6 +15,11 @@ vi.mock("next/navigation", () => ({
 
 const post = vi.fn();
 const get = vi.fn();
+const uploadAsset = vi.fn();
+
+vi.mock("@/lib/asset-upload", () => ({
+  uploadAsset: (...args: unknown[]) => uploadAsset(...args),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   browserApi: {
@@ -55,6 +60,13 @@ const SERIES_ID = "3a2b1c0d-4e5f-4a6b-8c9d-0e1f2a3b4c5d";
 const FIRST = "Mid twenties, cropped black hair, round glasses.";
 const SECOND = "Now with a shaved head and a leather jacket.";
 
+const IMAGE = {
+  assetId: "6d0b2f19-3a5c-4e8e-9b2a-71f0c4d5e6a7",
+  contentType: "image/png",
+  url: "https://storage.test/source/w/a?signature=abc",
+  expiresAt: "2036-07-30T09:15:00.000Z",
+} as const;
+
 const CHARACTER: Character = {
   id: "4b3c2d1e-5f60-4b7c-9d0e-1f2a3b4c5d6e",
   name: "Ada",
@@ -66,6 +78,12 @@ const CHARACTER: Character = {
     referenceImages: [],
     createdAt: "2026-07-30T10:00:00.000Z",
   },
+};
+
+/** The same character, with a reference image already on its current version. */
+const WITH_IMAGE: Character = {
+  ...CHARACTER,
+  currentVersion: { ...CHARACTER.currentVersion, referenceImages: [IMAGE] },
 };
 
 function versioned() {
@@ -88,8 +106,19 @@ function history() {
     status: 200,
     json: async () => ({
       versions: [
-        { version: 2, appearance: SECOND, createdAt: "2026-07-30T10:00:00.000Z" },
-        { version: 1, appearance: FIRST, createdAt: "2026-07-30T09:00:00.000Z" },
+        {
+          version: 2,
+          appearance: SECOND,
+          referenceImages: [],
+          createdAt: "2026-07-30T10:00:00.000Z",
+        },
+        {
+          version: 1,
+          appearance: FIRST,
+          // What version 1 was generated from, which is what §32.7 keeps the history for.
+          referenceImages: [IMAGE],
+          createdAt: "2026-07-30T09:00:00.000Z",
+        },
       ],
     }),
   };
@@ -112,6 +141,7 @@ describe("character row", () => {
     refresh.mockReset();
     post.mockReset();
     get.mockReset();
+    uploadAsset.mockReset();
     post.mockResolvedValue(versioned());
     get.mockResolvedValue(history());
   });
@@ -240,7 +270,14 @@ describe("character row", () => {
     get.mockResolvedValue({
       status: 200,
       json: async () => ({
-        versions: [{ version: 1, appearance: FIRST, createdAt: "2026-07-30T09:00:00.000Z" }],
+        versions: [
+          {
+            version: 1,
+            appearance: FIRST,
+            referenceImages: [],
+            createdAt: "2026-07-30T09:00:00.000Z",
+          },
+        ],
       }),
     });
     row({
@@ -259,5 +296,133 @@ describe("character row", () => {
     // The only version is the one already on screen, so a list of it would say nothing.
     expect(await screen.findByText(COPY.history.only)).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: COPY.history.heading })).not.toBeInTheDocument();
+  });
+
+  /**
+   * Reference images (§32.1, §32.7).
+   *
+   * The behaviour worth pinning is the one a creator cannot see going wrong: a version states
+   * its images in full, so an appearance edit that forgot to resend them would silently throw
+   * away every photograph they had uploaded.
+   */
+  describe("reference images", () => {
+    const NEW_ASSET_ID = "8a1c4e57-2b6d-4f91-83c5-04e7b2a1d9f3";
+
+    function pngFile(name = "ada.png"): File {
+      return new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], name, { type: "image/png" });
+    }
+
+    async function startEditingWith(character: Character): Promise<void> {
+      row(character);
+      await userEvent.click(screen.getByRole("button", { name: COPY.update.action }));
+    }
+
+    it("shows the current version's images, named after the character", async () => {
+      row(WITH_IMAGE);
+
+      // Not "reference image": someone moving down a cast of ten by screen reader would hear
+      // the same phrase ten times and learn nothing.
+      const image = screen.getByAltText(COPY.referenceImages.alt("Ada", 1));
+
+      expect(image).toHaveAttribute("src", IMAGE.url);
+    });
+
+    it("carries the existing images into the version it saves", async () => {
+      /*
+       * The silent data loss this exists to prevent. The creator edited words, not images, so
+       * the new version has to pin what the old one did — nothing on screen would tell them
+       * otherwise until an episode came back without the reference.
+       */
+      await startEditingWith(WITH_IMAGE);
+
+      await userEvent.clear(screen.getByLabelText(COPY.create.appearance.label));
+      await userEvent.type(screen.getByLabelText(COPY.create.appearance.label), "A third look.");
+      await userEvent.click(screen.getByRole("button", { name: COPY.update.submit }));
+
+      expect(post).toHaveBeenCalledWith({
+        param: { workspaceId: WORKSPACE_ID, seriesId: SERIES_ID, characterId: CHARACTER.id },
+        json: {
+          appearance: "A third look.",
+          revision: CHARACTER.revision,
+          referenceAssetIds: [IMAGE.assetId],
+        },
+      });
+    });
+
+    it("drops an image only when it is removed on purpose", async () => {
+      await startEditingWith(WITH_IMAGE);
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.referenceImages.remove }));
+      await userEvent.click(screen.getByRole("button", { name: COPY.update.submit }));
+
+      expect(post).toHaveBeenCalledWith(
+        expect.objectContaining({ json: expect.objectContaining({ referenceAssetIds: [] }) }),
+      );
+    });
+
+    it("will not upload before the right to use the file is confirmed", async () => {
+      // §195, §733. Disabled rather than validated afterwards, so nothing is ever sent
+      // without the confirmation existing first.
+      await startEditingWith(CHARACTER);
+
+      expect(screen.getByLabelText(COPY.referenceImages.label)).toBeDisabled();
+
+      await userEvent.click(screen.getByLabelText(COPY.referenceImages.rights));
+
+      expect(screen.getByLabelText(COPY.referenceImages.label)).toBeEnabled();
+    });
+
+    it("uploads the chosen file and pins it to the version being saved", async () => {
+      uploadAsset.mockResolvedValue({ outcome: "uploaded", assetId: NEW_ASSET_ID });
+      await startEditingWith(CHARACTER);
+
+      await userEvent.click(screen.getByLabelText(COPY.referenceImages.rights));
+      await userEvent.upload(screen.getByLabelText(COPY.referenceImages.label), pngFile());
+
+      // Uploaded before the version is saved, because a version row is never rewritten and
+      // so cannot have an image attached after the fact.
+      expect(uploadAsset).toHaveBeenCalledWith(expect.any(File), { workspaceId: WORKSPACE_ID });
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.update.submit }));
+
+      expect(post).toHaveBeenCalledWith(
+        expect.objectContaining({
+          json: expect.objectContaining({ referenceAssetIds: [NEW_ASSET_ID] }),
+        }),
+      );
+    });
+
+    it("says which kind of file was refused, and saves nothing", async () => {
+      // A renamed photograph is the common case, and "something went wrong" would leave the
+      // creator with no idea which file to change.
+      uploadAsset.mockResolvedValue({ outcome: "failed", reason: "unsupported" });
+      await startEditingWith(CHARACTER);
+
+      await userEvent.click(screen.getByLabelText(COPY.referenceImages.rights));
+      await userEvent.upload(
+        screen.getByLabelText(COPY.referenceImages.label),
+        pngFile("photo.png"),
+      );
+
+      expect(await screen.findByText(COPY.referenceImages.errors.unsupported)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.update.submit }));
+
+      expect(post).toHaveBeenCalledWith(
+        expect.objectContaining({ json: expect.objectContaining({ referenceAssetIds: [] }) }),
+      );
+    });
+
+    it("shows what an earlier version was generated from", async () => {
+      // The history is only worth keeping if it says what the older episode looked at, not
+      // merely what it was described as (§32.7).
+      row(CHARACTER);
+
+      await userEvent.click(screen.getByRole("button", { name: COPY.history.show }));
+
+      const versions = await screen.findByRole("list", { name: COPY.history.heading });
+
+      expect(versions).toContainElement(screen.getByAltText(COPY.referenceImages.alt("Ada", 1)));
+    });
   });
 });
