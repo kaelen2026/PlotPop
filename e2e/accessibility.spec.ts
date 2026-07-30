@@ -23,6 +23,8 @@ const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
  */
 const PAGES = [
   { name: "the landing page", path: "/" },
+  { name: "the sign-in page", path: "/sign-in" },
+  { name: "the sign-up page", path: "/sign-up" },
   { name: "Creator Home", path: "/home" },
   { name: "the creation wizard", path: "/episodes/new" },
   { name: "the Episode Studio", path: "/episodes/prototype-3" },
