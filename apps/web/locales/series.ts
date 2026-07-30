@@ -45,6 +45,44 @@ export const series = {
     conflict: "This series changed somewhere else. Reload to see its current name, then rename it.",
     reload: "Reload",
   },
+  /**
+   * The cast of one series (§20.2, §32.7). A character's appearance is versioned, and the
+   * copy says so — a creator who does not know that will be surprised the first time an
+   * old episode keeps the old look.
+   */
+  cast: {
+    heading: "Cast",
+    description:
+      "Characters belong to the series, so every episode can reuse them. Changing how one looks creates a new version, and episodes keep the version they were made with.",
+    version: "Version",
+    empty: {
+      title: "No characters yet",
+      description:
+        "Describe who is in this series. The description is what keeps a character recognisable from shot to shot.",
+    },
+    create: {
+      heading: "New character",
+      name: {
+        label: "Character name",
+        errors: {
+          required: "Enter a name for the character.",
+          tooLong: "Use 80 characters or fewer.",
+        },
+      },
+      appearance: {
+        label: "Appearance",
+        description:
+          "Age, build, hair, face, clothing — the details that should stay the same in every shot.",
+        errors: {
+          required: "Describe how this character looks.",
+          tooLong: "Use 2000 characters or fewer.",
+        },
+      },
+      submit: "Add character",
+      pending: "Adding…",
+      failed: "We could not add that character. Please try again.",
+    },
+  },
 } as const;
 
 export type SeriesMessages = typeof series;

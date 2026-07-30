@@ -3,6 +3,7 @@ import type { HealthResponse } from "@plotpop/contracts";
 import type { Database } from "@plotpop/db";
 import type { ReadinessReporter } from "@plotpop/observability";
 import { Hono } from "hono";
+import { createCharacterRoutes } from "./routes/characters.js";
 import { createSeriesRoutes } from "./routes/series.js";
 import { createWorkspaceRoutes } from "./routes/workspaces.js";
 
@@ -49,6 +50,12 @@ export function createApp({ readiness, auth, db }: AppDependencies) {
        * these handlers have to see typed; `routes/series.ts` says why.
        */
       .route("/api/v1/workspaces", createSeriesRoutes({ db, auth }))
+      /*
+       * A series' cast hangs off the series that owns it, which hangs off the workspace:
+       * `/api/v1/workspaces/:workspaceId/series/:seriesId/characters`. Both ids are in the
+       * path because both are checked (§20.1, §32.7).
+       */
+      .route("/api/v1/workspaces", createCharacterRoutes({ db, auth }))
   );
 }
 

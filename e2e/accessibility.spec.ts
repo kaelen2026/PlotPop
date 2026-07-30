@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { createSeriesThroughApi } from "./support/library";
 import { signUpThroughApi, testAccount } from "./support/session";
 import { seedThemePreference, THEME_ATTRIBUTE, themeOption, themeSwitcher } from "./support/theme";
 
@@ -32,6 +33,12 @@ const PAGES = [
   { name: "the sign-up page", path: "/sign-up" },
   { name: "Creator Home", path: "/home" },
   { name: "the series library", path: "/series", session: true },
+  {
+    name: "a series' cast",
+    session: true,
+    // A path that only exists once a series does, so this entry builds one first.
+    path: async (page: Page) => `/series/${await createSeriesThroughApi(page, "Audited Series")}`,
+  },
   { name: "the creation wizard", path: "/episodes/new" },
   { name: "the Episode Studio", path: "/episodes/prototype-3" },
 ] as const;
@@ -61,7 +68,8 @@ test.describe("every page passes an automated WCAG audit", () => {
         // composited, including any contrast the tokens cannot predict.
         await seedThemePreference(page, theme);
         if (needsSession) await signUpThroughApi(page, testAccount("axe"));
-        await page.goto(path);
+
+        await page.goto(typeof path === "string" ? path : await path(page));
         // Waits for the main landmark rather than the theme switcher: the Studio
         // has its own top bar (§8.3) and does not carry the shell.
         await expect(page.locator("main")).toBeVisible();

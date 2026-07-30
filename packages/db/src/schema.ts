@@ -106,3 +106,45 @@ export const series = pgTable(
     check("series_name_not_blank", sql`length(btrim(${table.name})) > 0`),
   ],
 );
+
+/** §20.2: the identity that stays put across a series' episodes. `migrations/0003_character.sql`. */
+export const character = pgTable(
+  "character",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seriesId: uuid("series_id")
+      .notNull()
+      .references(() => series.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    revision: integer("revision").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("character_series_id_created_at_idx").on(table.seriesId, table.createdAt, table.id),
+    check("character_name_not_blank", sql`length(btrim(${table.name})) > 0`),
+  ],
+);
+
+/**
+ * §32.7: what the character looked like at a moment. An episode or shot locks one of
+ * these, so improving a character never rewrites what already shipped.
+ */
+export const characterVersion = pgTable(
+  "character_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => character.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    appearance: text("appearance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("character_version_character_id_version_unique").on(table.characterId, table.version),
+    index("character_version_character_id_version_idx").on(table.characterId, table.version.desc()),
+    check("character_version_positive", sql`${table.version} > 0`),
+    check("character_version_appearance_not_blank", sql`length(btrim(${table.appearance})) > 0`),
+  ],
+);

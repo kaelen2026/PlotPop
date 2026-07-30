@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 仓库当前状态
 
-**F-01 与 F-02 已完成，F-03 与 F-04 进行中。第一条真实业务链路已经通了：`/series` 从浏览器经 API 读写 PostgreSQL，其余页面仍是占位数据。**
+**F-01 与 F-02 已完成，F-03 与 F-04 进行中。真实业务链路已经通了：系列与角色从浏览器经 API 读写 PostgreSQL，其余页面仍是占位数据。**
 
 F-01 已全部完成：
 
@@ -38,6 +38,11 @@ F-01 已全部完成：
 
 **F-04 进行中：**
 
+- F-04.03：系列里的角色。迁移 `0003_character.sql` 建 `character` 与 `character_version` 两张表 —— §32.7 要求身份与外观分离：改进一个角色的长相**不得**重写已经用它出片的剧集，所以剧集与镜头锁的是版本。创建角色时**同一事务里写身份与第一个版本**，没有版本的角色生成不出任何东西，是一行看起来像进展的空记录。
+  - 「当前版本」定义为该角色最大的 version 号，没有指针列可以走神；列表用相关子查询在 JOIN 里选出它，十个角色不会读一百行。`character_version (character_id, version)` 唯一约束保证「版本 2」只有一个含义。
+  - 归属现在有两层：`/api/v1/workspaces/:workspaceId/series/:seriesId/characters`。两层条件都在查询里 —— 「自己的 workspace + 别人的 series」这种配对不能靠前一半通过（API 与仓库两层都有针对它的测试）。
+  - Web `/series/[seriesId]` 出现，剧集列表行的标题成为进入它的链接。无障碍门禁的页面清单现在支持「先建出数据再审」的条目（`e2e/support/library.ts`）。
+
 - F-04.02：系列重命名与 Revision 乐观锁。`seriesRenameInputSchema`（名字 + **必填** revision）进 `packages/contracts`；`renameSeries` 是条件更新 —— 成员身份、workspace 与 revision 全在 `where` 里，陈旧或越权的写匹配不到行，而不是先写后报。三个结果 `renamed | stale | missing` 对应 200 / 409 / 404：`stale` 说「重新读一遍」，别人的系列一律 `missing`，陌生人不会被告知自己猜错了 revision。
   - `apiErrorActionSchema` 新增 `reload`。revision 冲突用 `retry` 是错的 —— 同一个请求体带着同一个陈旧 revision，重试必然同样失败。
   - 列表行变成客户端组件 `series-row.tsx`（重命名是交互，外面的列表仍是服务端读）。冲突时**不自动刷新**：背着人重读会把刚打的字冲掉，所以刷新是一个按钮而不是一个副作用。
@@ -55,7 +60,7 @@ F-01 已全部完成：
 
 Web 侧的原型边界，动手前要知道：
 
-- **除 `/series` 之外，页面数据都是占位的**，来自 `apps/web/lib/prototype-*.ts`。Web 不读数据库（ADR-001），真实数据要等 F-04 / F-05 的 API；接上时删掉这些文件。`/series` 是接法的样板：Server Component 读、客户端表单写、写完 `router.refresh()`。
+- **除系列的两个页面（`/series` 与 `/series/[seriesId]`）之外，页面数据都是占位的**，来自 `apps/web/lib/prototype-*.ts`。Web 不读数据库（ADR-001），真实数据要等 F-04 / F-05 的 API；接上时删掉这些文件。`/series` 是接法的样板：Server Component 读、客户端表单写、写完 `router.refresh()`。
 - 向导只有脚本步骤有表单，其余四步可走通但只展示该步要做什么。
 - Studio 做到浏览与时间线。**镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口不在这里** —— 前两项已移交 F-11（见上），后两项属 F-06 / F-09。
 - §12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**。

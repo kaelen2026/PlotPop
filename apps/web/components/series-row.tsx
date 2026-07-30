@@ -4,9 +4,11 @@ import { type Series, seriesRenameInputSchema } from "@plotpop/contracts";
 import { Button } from "@plotpop/ui/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@plotpop/ui/components/ui/field";
 import { Input } from "@plotpop/ui/components/ui/input";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { browserApi } from "@/lib/api-client";
+import { seriesDetailRoute } from "@/lib/routes";
 import { messages } from "@/locales/en";
 
 const COPY = messages.series.rename;
@@ -140,9 +142,14 @@ export function SeriesRow({ series, workspaceId }: { series: Series; workspaceId
         </form>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Not a link yet: a series has no detail page until the slice that gives it
-              one, and a link to nowhere is worse than plain text. */}
-          <span className="text-heading-xs">{series.name}</span>
+          {/* The title is the link rather than the whole row: a row sized link would
+              swallow the rename control into its accessible name. */}
+          <Link
+            className="text-heading-xs underline-offset-4 hover:underline focus-visible:focus-ring"
+            href={seriesDetailRoute(series.id)}
+          >
+            {series.name}
+          </Link>
           <Button onClick={startEditing} type="button" variant="outline">
             {COPY.action}
           </Button>

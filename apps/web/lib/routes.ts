@@ -11,6 +11,11 @@ export const routes = {
   newEpisode: "/episodes/new",
 } as const;
 
+/** One series and its cast. A function because the id is part of the path. */
+export function seriesDetailRoute(seriesId: string): string {
+  return `/series/${seriesId}`;
+}
+
 /** An episode's Studio. A function because the id is part of the path. */
 export function episodeStudioRoute(episodeId: string): string {
   return `/episodes/${episodeId}`;

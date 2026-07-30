@@ -162,3 +162,24 @@ export async function renameSeries(
     return existing[0] === undefined ? { outcome: "missing" } : { outcome: "stale" };
   });
 }
+
+/** One series, but only if it belongs to a workspace the caller is a member of. */
+export async function findSeriesForMember(
+  db: Database,
+  scope: WorkspaceScope & { readonly seriesId: string },
+): Promise<SeriesRecord | null> {
+  const rows = await db
+    .select(seriesColumns)
+    .from(series)
+    .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
+    .where(
+      and(
+        eq(series.id, scope.seriesId),
+        eq(series.workspaceId, scope.workspaceId),
+        eq(workspaceMember.userId, scope.userId),
+      ),
+    )
+    .limit(1);
+
+  return rows[0] ?? null;
+}

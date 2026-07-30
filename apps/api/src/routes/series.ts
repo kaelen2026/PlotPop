@@ -10,6 +10,7 @@ import {
 import {
   createSeries,
   type Database,
+  findSeriesForMember,
   findWorkspaceForMember,
   listSeriesForWorkspace,
   renameSeries,
@@ -119,6 +120,22 @@ export function createSeriesRoutes({ db, auth }: SeriesRouteDependencies) {
         return c.json(toPayload(created), 201);
       },
     )
+    .get("/:workspaceId/series/:seriesId", async (c) => {
+      const workspaceId = parseWorkspaceId(c.req.param("workspaceId"));
+      const seriesId = parseSeriesId(c.req.param("seriesId"));
+
+      if (workspaceId === null || seriesId === null) return c.json(notFound(), 404);
+
+      const found = await findSeriesForMember(db, {
+        workspaceId,
+        seriesId,
+        userId: c.var.user.id,
+      });
+
+      if (found === null) return c.json(notFound(), 404);
+
+      return c.json(toPayload(found), 200);
+    })
     .patch(
       "/:workspaceId/series/:seriesId",
       zValidator("json", seriesRenameInputSchema, (result, c) =>

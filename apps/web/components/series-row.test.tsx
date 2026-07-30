@@ -4,6 +4,7 @@ import type { Series } from "@plotpop/contracts";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { seriesDetailRoute } from "@/lib/routes";
 import { messages } from "@/locales/en";
 import { SeriesRow } from "./series-row";
 
@@ -71,10 +72,13 @@ describe("series row", () => {
     patch.mockResolvedValue(renamed("Rooftop Confessions, Season One", 4));
   });
 
-  it("shows the name until asked to rename it", () => {
+  it("shows the name as the way into the series until asked to rename it", () => {
     row();
 
-    expect(screen.getByText(SERIES.name)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: SERIES.name })).toHaveAttribute(
+      "href",
+      seriesDetailRoute(SERIES.id),
+    );
     expect(screen.queryByLabelText(NAME.label)).not.toBeInTheDocument();
   });
 
@@ -116,7 +120,7 @@ describe("series row", () => {
     await userEvent.click(screen.getByRole("button", { name: COPY.cancel }));
 
     expect(patch).not.toHaveBeenCalled();
-    expect(screen.getByText(SERIES.name)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: SERIES.name })).toBeInTheDocument();
     expect(screen.queryByLabelText(NAME.label)).not.toBeInTheDocument();
   });
 
