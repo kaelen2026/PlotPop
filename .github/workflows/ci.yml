@@ -108,9 +108,29 @@ jobs:
   # guarantee is that there is nothing here to authenticate with — a spec that
   # reaches for a real provider fails at configuration parsing, which is the
   # cheapest possible place to find out.
+  #
+  # PostgreSQL is here because the gates run against a real api: the chain from the
+  # browser through Next's rewrite to Better Auth and a provisioned workspace is
+  # what these specs are for, and every link of it is configuration that fails
+  # silently. Redis and object storage are deliberately absent — nothing under test
+  # needs them, which is why the api is waited on at `/health` rather than `/ready`.
   browser:
     name: Browser gates
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: plotpop
+          POSTGRES_PASSWORD: plotpop
+          POSTGRES_DB: plotpop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U plotpop -d plotpop"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 

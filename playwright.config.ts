@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { API_ORIGIN, API_PORT, WEB_ORIGIN, WEB_PORT } from "./e2e/support/servers";
 
 /**
  * Playwright configuration for the end-to-end, accessibility and visual gates.
@@ -14,15 +17,43 @@ import { defineConfig, devices } from "@playwright/test";
  * `next build` and executed by `pnpm test`. A repository level `e2e/` directory
  * belongs to no workspace and is also where the journeys that cross Web, API and
  * Worker will go.
+ *
+ * Two servers, not one: the gates run against a real api over a real database, so
+ * the journey a person takes — browser to its own origin, Next forwarding `/api/*`,
+ * Better Auth setting a first-party cookie — is the journey under test rather than
+ * a configuration nobody exercises until production. `pnpm test:e2e` therefore
+ * needs PostgreSQL: start it with `pnpm docker:up`.
  */
 
-/**
- * A dedicated port, not 3000: `pnpm test:e2e` has to be safe to run while
- * `pnpm dev` is up, and `reuseExistingServer` must never pick up a dev server
- * whose build is not the one under test.
+const baseURL = WEB_ORIGIN;
+
+/*
+ * The api is served from its build output, and `node dist/index.js` reads no env
+ * file of its own, so its database url, session secret and storage credentials
+ * have to be in this process's environment before the server starts. The
+ * repository root `.env` is the file `pnpm dev` and the api's own scripts read
+ * (`CLAUDE.md`), and CI writes one from `.env.example`.
+ *
+ * `loadEnvFile` leaves an already-set variable alone, which is what lets a shell
+ * or a CI job override any of it — and what makes the per-server `env` blocks
+ * below authoritative for the handful of values these gates need to differ.
  */
-const port = 3100;
-const baseURL = `http://127.0.0.1:${port}`;
+const rootEnvFile = resolve(process.cwd(), ".env");
+
+if (existsSync(rootEnvFile)) {
+  process.loadEnvFile(rootEnvFile);
+}
+
+/*
+ * Never reuse a server that is already listening, not even locally.
+ *
+ * Next bakes the rewrite destination into the build (`routes-manifest.json`), so a
+ * server left over from another run or another branch may proxy `/api/*` at an api
+ * that is not the one these gates started — which arrives as an authentication
+ * failure rather than as a configuration mistake. Refusing to reuse turns that
+ * into Playwright saying the port is occupied, which is a sentence you can act on.
+ */
+const REUSE_EXISTING_SERVER = false;
 
 /** `docs/design-system.md` §8.2: Large (`xl:`) and Small (default) tiers. */
 const desktopViewport = { width: 1440, height: 900 };
@@ -115,18 +146,58 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    // A production build, not `next dev`: §5.2 is about what the browser paints
-    // first, and the development server injects its own scripts ahead of the
-    // document. Turborepo caches the build, so a repeated local run pays for the
-    // server start only.
-    command: `pnpm exec turbo run build --filter=@plotpop/web && pnpm --filter @plotpop/web start --port ${port}`,
-    // Waits on the liveness route rather than the page, so a server that boots
-    // but cannot render is still reported as a failing test instead of a timeout.
-    url: `${baseURL}/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 240_000,
-    stdout: "ignore",
-    stderr: "pipe",
-  },
+  /*
+   * Started in order, api first: Playwright awaits each entry before the next, and
+   * the web build has nothing to gain from racing the api's.
+   */
+  webServer: [
+    {
+      command: `pnpm exec turbo run build --filter=@plotpop/api && pnpm --filter @plotpop/api start`,
+      /*
+       * Liveness, not readiness. `/ready` probes Redis and object storage, which
+       * no gate needs and the browser job does not start, so waiting on it would
+       * report a working api as a start-up timeout. `CLAUDE.md` keeps `/health`
+       * free of dependency checks precisely so it can answer this question.
+       */
+      url: `${API_ORIGIN}/health`,
+      env: {
+        /*
+         * Not `production`: `packages/config` refuses to trust a loopback origin
+         * in production, and a Secure cookie over plain http is dropped by the
+         * browser — which would look like a broken login rather than a
+         * misconfigured gate.
+         */
+        NODE_ENV: "test",
+        API_PORT: String(API_PORT),
+        // Better Auth checks the origin the browser presents (ADR-007), and here
+        // that is the Playwright web server rather than the development one.
+        AUTH_BASE_URL: WEB_ORIGIN,
+        AUTH_TRUSTED_ORIGINS: WEB_ORIGIN,
+      },
+      reuseExistingServer: REUSE_EXISTING_SERVER,
+      timeout: 240_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+    {
+      // A production build, not `next dev`: §5.2 is about what the browser paints
+      // first, and the development server injects its own scripts ahead of the
+      // document. Turborepo caches the build, so a repeated local run pays for the
+      // server start only.
+      command: `pnpm exec turbo run build --filter=@plotpop/web && pnpm --filter @plotpop/web start --port ${WEB_PORT}`,
+      // Waits on the liveness route rather than the page, so a server that boots
+      // but cannot render is still reported as a failing test instead of a timeout.
+      url: `${baseURL}/health`,
+      env: {
+        NODE_ENV: "production",
+        // The rewrite target (ADR-007). Without this the gates would proxy to
+        // whatever `.env` points at, which is the api a developer is running.
+        API_BASE_URL: API_ORIGIN,
+      },
+      reuseExistingServer: REUSE_EXISTING_SERVER,
+      timeout: 240_000,
+      stdout: "ignore",
+      stderr: "pipe",
+    },
+  ],
 });

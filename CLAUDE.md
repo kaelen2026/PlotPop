@@ -75,6 +75,8 @@ pnpm typecheck
 pnpm test           # Vitest，只跑不需要数据库的测试
 pnpm test:integration  # Vitest，跑真实 PostgreSQL 的测试（先 pnpm docker:up）
 pnpm test:coverage  # Vitest + v8 覆盖率（text-summary + lcov）
+pnpm test:e2e       # Playwright 行为与无障碍门禁（先 pnpm docker:up）
+pnpm test:e2e:visual   # 视觉回归，跑在钉住的 Playwright 容器里
 pnpm db:migrate     # 应用待处理迁移（= pnpm --filter @plotpop/api migrate）
 pnpm lint           # Biome：format + lint + 导入排序，警告即失败
 pnpm lint:fix       # 同上，写回可自动修复的部分
@@ -90,11 +92,9 @@ pnpm lint:fix       # 同上，写回可自动修复的部分
 
 只要本地依赖、不要容器化的 API/Worker：`docker compose -f docker/compose.yaml stop api worker`。
 
-仍规划中（来自 `docs/implementation-plan.md` §2 与 §6.1，由后续批次建立）：
+**`pnpm test:e2e` 起的是真实 API + 真实数据库，因此它需要 PostgreSQL**（`pnpm docker:up`）。`playwright.config.ts` 自己在 3101 起 API、在 3100 起 Web，端口与 `pnpm dev` 不冲突；命令本身会先构建 API 并跑一次 `pnpm db:migrate`。它用的是 `.env` 里的那个数据库 —— e2e 只往里追加注册用户（邮箱每次随机），不改别的。两个服务都**不复用**已在监听的进程：Next 把 rewrite 目标烤进构建产物，复用一个别处留下的服务等于把 `/api/*` 指向未知的 API，而那会表现成登录失败而不是配置错误。
 
-```bash
-pnpm test:e2e       # Playwright，F-02 之后
-```
+**`API_BASE_URL` 必须留在 `turbo.json` 的 `@plotpop/web#build` 里。** Turborepo 2.x 默认 strict env，没声明的变量根本不会进入构建进程；而 Next 的 rewrite 目标是 build 时写进 `routes-manifest.json` 的。删掉这条声明，e2e 的 Web 构建就会拿 `.env` 里的地址去代理，测试转而打向你本地正在跑的那个 API。同一条声明里的 `$TURBO_ROOT$/.env` 是为了改了根 `.env` 之后不会命中旧构建缓存。
 
 按 workspace 收窄（开发中优先用这个，别全仓库跑）：
 

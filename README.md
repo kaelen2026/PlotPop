@@ -125,7 +125,9 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm test:e2e` type checks `e2e/` first, then runs the suite. It builds `@plotpop/web` and serves it on port 3100, so it is safe to run while `pnpm dev` holds 3000; Turborepo caches the build, so a repeat run pays for the server start only.
+`pnpm test:e2e` type checks `e2e/` first, then runs the suite. It needs PostgreSQL, so start the local stack with `pnpm docker:up`: the gates run against a real api over a real database, which is the only way the chain from the browser through Next's rewrite to a first-party session cookie is ever exercised. The command builds both services, applies migrations, and serves the api on 3101 and the web app on 3100, so it is safe to run while `pnpm dev` holds 3000 and 3001. Turborepo caches the builds, so a repeat run pays for the server start only.
+
+Neither server is reused if something is already listening on its port. Next bakes the rewrite destination into the build, so a server left behind by another branch would proxy `/api/*` at an api these gates did not start — and that arrives as a failed login rather than as a configuration mistake.
 
 Accessibility runs in the same command: axe audits the page against the WCAG 2.2 AA rule sets in both themes, and explicit specs cover the keyboard path, the focus ring, and the rule from `docs/design-system.md` §6.8 that a state never rests on colour alone. axe's "best practice" rules stay off — a gate that has to be argued with is not a gate.
 
