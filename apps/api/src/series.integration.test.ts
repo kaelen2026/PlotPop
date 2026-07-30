@@ -315,4 +315,47 @@ describe("series routes", () => {
 
     expect(response.status).toBe(401);
   });
+
+  it("reads one series the caller can see", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Readable" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+
+    const read = await seriesEntry().$get(
+      { param: { workspaceId: niaWorkspaceId, seriesId: series.id } },
+      as(nia),
+    );
+
+    expect(read.status).toBe(200);
+    expect(seriesSchema.parse(await read.json())).toEqual(series);
+  });
+
+  it("hides another member's series from a read by id", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Unreadable" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+
+    const read = await seriesEntry().$get(
+      { param: { workspaceId: niaWorkspaceId, seriesId: series.id } },
+      as(ravi),
+    );
+
+    expect(read.status).toBe(404);
+    expect(apiErrorSchema.parse(await read.json()).error.code).toBe("not_found");
+  });
+
+  it("answers an unknown or malformed series id as not found", async () => {
+    for (const seriesId of ["0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f", "not-a-uuid"]) {
+      const read = await seriesEntry().$get(
+        { param: { workspaceId: niaWorkspaceId, seriesId } },
+        as(nia),
+      );
+
+      expect(read.status).toBe(404);
+    }
+  });
 });
