@@ -31,10 +31,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.12",
+    "@hono/zod-validator": "^0.9.0",
     "@plotpop/auth": "workspace:*",
     "@plotpop/config": "workspace:*",
-    "@plotpop/db": "workspace:*",
     "@plotpop/contracts": "workspace:*",
+    "@plotpop/db": "workspace:*",
     "@plotpop/observability": "workspace:*",
     "hono": "^4.12.32"
   }

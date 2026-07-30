@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /*
- * The business tables, matching `migrations/0001_workspace_and_credit_account.sql`.
+ * The business tables, matching the SQL under `migrations/`.
  *
  * Better Auth's tables are described in `packages/auth`: ADR-007 keeps them on a
  * separate boundary, and nothing here references them through drizzle. The
@@ -83,3 +83,26 @@ export const creditAccount = pgTable(
 
 /** MVP writes only `owner`; the rest are reserved for team capability (§20.1). */
 export const WORKSPACE_OWNER_ROLE = "owner";
+
+/** §6.1: what a creator reuses across episodes. `migrations/0002_series.sql`. */
+export const series = pgTable(
+  "series",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    revision: integer("revision").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("series_workspace_id_created_at_idx").on(
+      table.workspaceId,
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
+    check("series_name_not_blank", sql`length(btrim(${table.name})) > 0`),
+  ],
+);

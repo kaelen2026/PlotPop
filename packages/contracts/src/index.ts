@@ -5,4 +5,5 @@ export * from "./errors.js";
 export * from "./generation-status.js";
 export * from "./health.js";
 export * from "./logging.js";
+export * from "./series.js";
 export * from "./workspace.js";

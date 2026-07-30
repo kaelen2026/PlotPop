@@ -1,5 +1,6 @@
 import { ThemeSwitcher } from "@plotpop/ui/components/theme-switcher";
 import type { ReactNode } from "react";
+import { AppNav } from "@/components/app-nav";
 import { MAIN_CONTENT_ID } from "@/lib/routes";
 import { messages } from "@/locales/en";
 
@@ -26,8 +27,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <header className="stroke-hairline-b">
         {/* §8.3: `container-app` with page padding 4 on Small, 6 from Medium up. */}
-        <div className="mx-auto flex w-full max-w-app items-center justify-between gap-4 p-4 md:p-6">
-          <span className="font-display text-heading-md">PlotPop</span>
+        <div className="mx-auto flex w-full max-w-app flex-wrap items-center justify-between gap-4 p-4 md:p-6">
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <span className="font-display text-heading-md">PlotPop</span>
+            <AppNav />
+          </div>
           <ThemeSwitcher labels={messages.theme} />
         </div>
       </header>

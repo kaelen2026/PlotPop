@@ -57,7 +57,11 @@ describe("creator home", () => {
     it("does not render an empty episode list alongside the empty state", () => {
       render(<CreatorHome episodes={[]} />);
 
-      expect(screen.queryByRole("list")).toBeNull();
+      // Named, because the shell's navigation is a list too: an unnamed query here
+      // would pass for the wrong reason the moment the chrome grows.
+      expect(
+        screen.queryByRole("list", { name: messages.creatorHome.episodes.heading }),
+      ).toBeNull();
     });
   });
 
@@ -67,8 +71,7 @@ describe("creator home", () => {
       render(<CreatorHome episodes={episodes} />);
 
       const list = screen.getByRole("list", { name: messages.creatorHome.episodes.heading });
-      expect(screen.getAllByRole("listitem")).toHaveLength(episodes.length);
-      expect(list).toBeInTheDocument();
+      expect(list.querySelectorAll("li")).toHaveLength(episodes.length);
 
       for (const episode of episodes) {
         expect(screen.getByText(episode.title)).toBeInTheDocument();

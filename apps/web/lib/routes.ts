@@ -4,7 +4,10 @@
  */
 export const routes = {
   landing: "/",
+  signIn: "/sign-in",
+  signUp: "/sign-up",
   creatorHome: "/home",
+  series: "/series",
   newEpisode: "/episodes/new",
 } as const;
 

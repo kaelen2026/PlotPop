@@ -19,6 +19,7 @@ import { creatorHome } from "./creator-home";
 import { creditCost } from "./credit-cost";
 import { generationStatus } from "./generation-status";
 import { landing } from "./landing";
+import { series } from "./series";
 import { shell } from "./shell";
 import { studio } from "./studio";
 import { theme } from "./theme";
@@ -30,6 +31,7 @@ export const messages = {
   creditCost,
   generationStatus,
   landing,
+  series,
   shell,
   studio,
   theme,
