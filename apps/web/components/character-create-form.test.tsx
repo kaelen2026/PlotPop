@@ -81,7 +81,9 @@ describe("character create form", () => {
 
     expect(post).toHaveBeenCalledWith({
       param: { workspaceId: WORKSPACE_ID, seriesId: SERIES_ID },
-      json: { name: "Ada", appearance: APPEARANCE },
+      // The empty list is stated rather than omitted: it comes from the contract's own
+      // default, so the api is never left to guess what "no images" meant.
+      json: { name: "Ada", appearance: APPEARANCE, referenceAssetIds: [] },
     });
   });
 

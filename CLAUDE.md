@@ -38,6 +38,19 @@ F-01 已全部完成：
 
 **F-04 进行中：**
 
+- F-04.05：给角色上传参考图。浏览器经短时效签名 URL **直传对象存储**（§26），所以一次请求预留存储键并签发写权限，第二次确认真的到了什么。中间没有任何一步被信任：签名把声明的类型与字节数**签进去**（`content-length` 脚本不能设，浏览器填真实体积，于是签名等于把请求体钉死在那个长度），确认时读回字节验魔数 + 长度 + SHA-256 才让 Asset 变成 `ready`。
+  - 迁移 `0004_asset.sql` 与 `0005_character_version_asset.sql`。**Asset 的「不可变」指文件不指行**：行先于字节存在（不然没人给对象命名），`pending → ready` 是 §20.6 的条件状态迁移；永不变的是 `storage_key` 与 `checksum_sha256`。`declared_*` 与不带前缀的两列刻意分开 —— 「客户端说是 png」和「我们读出是 png」不是同一件事。`asset_ready_is_verified` 让「ready 但没验过」在数据库层不可表达。
+  - **§26 把检查交给 Media Worker，这一版由 API 同步做完整性那一半**，理由与分工写在新增的 §26.1：交给 Worker 必须经 Outbox（ADR-003），而 Outbox 属 F-05。媒体参数与安全扫描等队列落地后搬走。读取是**一次流式扫描**（同一个流喂 SHA-256、顺便留下开头 16 字节嗅探格式），峰值内存与文件大小无关，也只有一次存储往返。
+  - 参考图挂在**版本**上：换一张更好的照片不得改写已经用旧版本出过片的剧集（§32.7）。因此顺序被数据形状锁死 —— 先上传确认 Asset，再追加引用它的版本。每个 pin 都在写版本的同一事务里校验归属与 `ready`，不可用的 id 让整个写入回滚（连角色一起），否则创作者会拿到一个「图被静默丢掉」的角色且无从察觉。答案统一是 404。
+  - `character_version_asset.asset_id` **不级联删除**。代价是删 workspace 必须先清 pin —— 测试清理已经这么做，将来的 workspace 删除切片也必须。响亮地失败胜过悄悄留下孤儿。
+  - 签名下载 URL 直接进角色载荷（签名是本地 HMAC，十个角色不该多十次往返），存储键止步于 API。
+  - `STORAGE_PUBLIC_ENDPOINT` 是 API 独有且**必填**：SigV4 把 host 签进签名，回退到 `STORAGE_ENDPOINT` 会签出浏览器解析不了的地址 —— 把一个缺配置变成所有人上传失败，而不是运维一次启动失败。
+  - Web：`apps/web/lib/asset-upload.ts` 是三步上传，`character-row.tsx` 的编辑表单加文件选择与权利确认勾选（§195 / §733，未勾选时选择器禁用，所以不存在「先发再校验」）。**新版本的图是全量声明而不是增量**，所以表单必须把已有的图带上 —— 漏掉就是静默丢数据，`character-row.test.tsx` 有一条专门钉它。刚上传的图用本地 object URL 预览（确认接口返回的是 Asset 记录，不是读回它的权限）。新增注册表组件 `checkbox`（三处偏离写在文件头注释里）。签名 URL 用原生 `<img>` 而不是 `next/image` —— 优化器会缓存一份比读取权限活得更久的副本。
+  - `apps/web/vitest.setup.ts` 多了两个 jsdom 补丁：`ResizeObserver`（Radix 的 checkbox 会量自己）与 `URL.createObjectURL`（预览用）。两者都是桩而不是实现 —— 没有断言依赖测量值。
+  - `apps/web/locales/en.test.ts` 现在也看得进函数型文案：`referenceImages.alt` 是本项目第一处插值文案，而一个读不到值的模板会在句子中间渲染出 `undefined`，那正是这个门禁存在的目的。
+  - **`e2e/characters.spec.ts` 是唯一打真实 MinIO 的地方。** 其余层按 `.claude/rules/tdd.md` §6 用内存 `ObjectStore`（对象存储是被 mock 的边界）。只有浏览器能证明纯配置的那部分：API 为浏览器可达的 origin 签名、MinIO 接受带签名长度与类型的跨源 PUT、载荷里回来的签名 GET 真的能取到字节。这几环都不会在单元测试里错。
+  - **尚未做**：创建角色的表单没有上传入口（先用文字建角色，再编辑加图）；孤立对象的 Reconciler 与保留周期仍未做（ADR-006 已记）。
+
 - F-04.04：改角色外观 → 追加新版本，旧版本保留可读。因为版本是追加的，接口是 `POST .../characters/:characterId/versions` 而不是 PATCH —— 用版本 2 出过片的剧集必须永远还能找到版本 2（§32.7），所以**没有任何写入会改已有的版本行**。
   - 事务里**先做身份行的条件更新**（`revision` 匹配则 +1），它拿到行锁，所以第二个写入者会等、然后发现 revision 变了并得到 `stale`，而不是去追加第二个「版本 2」。`unique (character_id, version)` 是这条保证背后的兜底，不是机制本身。
   - 版本号在事务内取 `max(version) + 1`。
@@ -62,6 +75,8 @@ F-01 已全部完成：
 
 此外已有 `packages/observability`（结构化日志 + 就绪检查）与 `packages/api-client`（预编译 Hono RPC 客户端）。
 
+对象存储的客户端还**不是**一个包：`apps/api/src/object-store.ts` 是路由拿到的窄接口，`storage.ts` 是它的 S3 实现（两个客户端 —— API 与浏览器在不同地址访问存储，而 SigV4 签 host；`forcePathStyle` 因为 MinIO 按路径寻址）。只有 API 签名和读回，等 Media Worker 也需要这些操作时（也就是队列落地的那个切片）再抽成 `packages/storage`。
+
 尚不存在：`packages/domain`、`packages/providers`、`packages/testkit`、Outbox 与队列、优雅停机（属 §16）。测试工厂目前放在各自的测试里，包内共享的放包自己的 `testing/`（`@plotpop/db/testing` 的 `identityFixtureSource`）；`packages/testkit` 在第一个需要跨 workspace 共享工厂的切片里建立。
 
 Web 侧的原型边界，动手前要知道：
@@ -70,6 +85,7 @@ Web 侧的原型边界，动手前要知道：
 - 向导只有脚本步骤有表单，其余四步可走通但只展示该步要做什么。
 - Studio 做到浏览与时间线。**镜头检查器的编辑表单、局部重生成、顶栏的积分余额与导出入口不在这里** —— 前两项已移交 F-11（见上），后两项属 F-06 / F-09。
 - §12.4 表里的**操作入口（取消 / 重试 / 编辑）还没实现**。
+- 参考图的上传入口只在角色行的编辑表单里，**创建角色的表单还没有** —— 先用文字建角色，再编辑加图。
 - 预估与余额是占位值；真实报价由服务端产生（§10：**客户端不得计算权威余额**），属 F-06。
 - **主题的账户偏好与跨设备同步（`docs/design-system.md` §5.1）还没有** —— 需要账户接口，本次 F-03 切片没做，见上面的「F-03 尚未做」。
 

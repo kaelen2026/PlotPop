@@ -5,6 +5,7 @@ import type { Database } from "@plotpop/db";
 import { testClient } from "hono/testing";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
+import type { ObjectStore } from "./object-store.js";
 
 /**
  * Liveness and readiness must answer without a database, so the auth service is a
@@ -17,11 +18,13 @@ const stubAuth: AuthService = {
 };
 
 function appWith(readiness: ReadinessResponse) {
-  // Liveness and readiness never reach a query. A handle that would throw on use
-  // is the point: if either route grew a database read, these tests would say so.
+  // Liveness and readiness never reach a query, or object storage. Handles that would
+  // throw on use are the point: if either route grew a dependency read, these tests
+  // would say so rather than reporting the dependency's health as their own.
   const db = {} as Database;
+  const store = {} as ObjectStore;
 
-  return createApp({ readiness: async () => readiness, auth: stubAuth, db });
+  return createApp({ readiness: async () => readiness, auth: stubAuth, db, store });
 }
 
 const ready: ReadinessResponse = {

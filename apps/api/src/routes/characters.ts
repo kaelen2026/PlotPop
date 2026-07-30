@@ -1,7 +1,10 @@
 import { zValidator } from "@hono/zod-validator";
 import type { AuthService } from "@plotpop/auth";
 import {
+  type AssetReference,
+  assetReferenceSchema,
   type Character,
+  type CharacterVersion,
   characterCreateInputSchema,
   characterSchema,
   characterVersionCreateInputSchema,
@@ -11,6 +14,7 @@ import {
 import {
   addCharacterVersion,
   type CharacterRecord,
+  type CharacterVersionRecord,
   createCharacter,
   type Database,
   findSeriesForMember,
@@ -20,24 +24,60 @@ import {
 import { Hono } from "hono";
 import { notFound, revisionConflict, validationFailed } from "../errors.js";
 import { requireSession, type SessionEnv } from "../middleware/session.js";
+import type { ObjectStore } from "../object-store.js";
 
 export type CharacterRouteDependencies = {
   readonly db: Database;
   readonly auth: AuthService;
+  readonly store: ObjectStore;
 };
 
+/**
+ * A version's reference images, each with permission to read it.
+ *
+ * The urls are signed here rather than behind a separate route because signing is a local
+ * computation: a cast of ten would otherwise cost ten extra round trips to say something
+ * this response already knows. The storage key stops here — §26 keeps private material
+ * behind short-lived urls, and a key is a permanent handle to the object.
+ */
+async function toReferenceImages(
+  record: CharacterVersionRecord,
+  store: ObjectStore,
+): Promise<AssetReference[]> {
+  return Promise.all(
+    record.referenceImages.map(async (image) => {
+      const signed = await store.presignDownload({ key: image.storageKey });
+
+      return {
+        assetId: image.assetId,
+        contentType: assetReferenceSchema.shape.contentType.parse(image.contentType),
+        url: signed.url,
+        expiresAt: signed.expiresAt.toISOString(),
+      };
+    }),
+  );
+}
+
+async function toVersionPayload(
+  record: CharacterVersionRecord,
+  store: ObjectStore,
+): Promise<CharacterVersion> {
+  return {
+    version: record.version,
+    appearance: record.appearance,
+    referenceImages: await toReferenceImages(record, store),
+    createdAt: record.createdAt.toISOString(),
+  };
+}
+
 /** The row's own shape is not the payload's; §21 makes the contract the boundary. */
-function toPayload(record: CharacterRecord): Character {
+async function toPayload(record: CharacterRecord, store: ObjectStore): Promise<Character> {
   return {
     id: record.id,
     name: record.name,
     revision: record.revision,
     createdAt: record.createdAt.toISOString(),
-    currentVersion: {
-      version: record.currentVersion.version,
-      appearance: record.currentVersion.appearance,
-      createdAt: record.currentVersion.createdAt.toISOString(),
-    },
+    currentVersion: await toVersionPayload(record.currentVersion, store),
   };
 }
 
@@ -78,7 +118,7 @@ function parseCharacterPath(workspaceId: string, seriesId: string, characterId: 
  * The paths are written out rather than left to the mount point, so both ids reach the
  * handlers typed (`routes/series.ts` says why).
  */
-export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) {
+export function createCharacterRoutes({ db, auth, store }: CharacterRouteDependencies) {
   return (
     new Hono<SessionEnv>()
       .use(requireSession(auth))
@@ -98,7 +138,10 @@ export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) 
 
         const characters = await listCharactersForSeries(db, { ...path, userId: c.var.user.id });
 
-        return c.json({ characters: characters.map(toPayload) }, 200);
+        return c.json(
+          { characters: await Promise.all(characters.map((entry) => toPayload(entry, store))) },
+          200,
+        );
       })
       .post(
         "/:workspaceId/series/:seriesId/characters",
@@ -116,13 +159,14 @@ export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) 
             userId: c.var.user.id,
             name: input.name,
             appearance: input.appearance,
+            referenceAssetIds: input.referenceAssetIds,
           });
 
           // `null` means the series was not reachable: the write scoped itself, and nothing
           // was stored. Same answer as an id that names nothing.
           if (created === null) return c.json(notFound(), 404);
 
-          return c.json(toPayload(created), 201);
+          return c.json(await toPayload(created, store), 201);
         },
       )
       /*
@@ -151,12 +195,13 @@ export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) 
             userId: c.var.user.id,
             appearance: input.appearance,
             revision: input.revision,
+            referenceAssetIds: input.referenceAssetIds,
           });
 
           if (result.outcome === "missing") return c.json(notFound(), 404);
           if (result.outcome === "stale") return c.json(revisionConflict(), 409);
 
-          return c.json(toPayload(result.character), 201);
+          return c.json(await toPayload(result.character, store), 201);
         },
       )
       .get("/:workspaceId/series/:seriesId/characters/:characterId/versions", async (c) => {
@@ -179,11 +224,7 @@ export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) 
 
         return c.json(
           {
-            versions: versions.map((entry) => ({
-              version: entry.version,
-              appearance: entry.appearance,
-              createdAt: entry.createdAt.toISOString(),
-            })),
+            versions: await Promise.all(versions.map((entry) => toVersionPayload(entry, store))),
           },
           200,
         );

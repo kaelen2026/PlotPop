@@ -3,6 +3,8 @@ import type { HealthResponse } from "@plotpop/contracts";
 import type { Database } from "@plotpop/db";
 import type { ReadinessReporter } from "@plotpop/observability";
 import { Hono } from "hono";
+import type { ObjectStore } from "./object-store.js";
+import { createAssetRoutes } from "./routes/assets.js";
 import { createCharacterRoutes } from "./routes/characters.js";
 import { createSeriesRoutes } from "./routes/series.js";
 import { createWorkspaceRoutes } from "./routes/workspaces.js";
@@ -13,6 +15,8 @@ export type AppDependencies = {
   readonly readiness: ReadinessReporter;
   readonly auth: AuthService;
   readonly db: Database;
+  /** Injected rather than constructed here: `.claude/rules/tdd.md` §6 makes it a boundary. */
+  readonly store: ObjectStore;
 };
 
 /**
@@ -20,7 +24,7 @@ export type AppDependencies = {
  * (docs/ai-comic-drama-saas-design.md §21), and every response states its status
  * explicitly so the client infers a usable union.
  */
-export function createApp({ readiness, auth, db }: AppDependencies) {
+export function createApp({ readiness, auth, db, store }: AppDependencies) {
   return (
     new Hono()
       .get("/health", (c) => c.json(liveness, 200))
@@ -55,7 +59,13 @@ export function createApp({ readiness, auth, db }: AppDependencies) {
        * `/api/v1/workspaces/:workspaceId/series/:seriesId/characters`. Both ids are in the
        * path because both are checked (§20.1, §32.7).
        */
-      .route("/api/v1/workspaces", createCharacterRoutes({ db, auth }))
+      .route("/api/v1/workspaces", createCharacterRoutes({ db, auth, store }))
+      /*
+       * Assets hang off the workspace that owns them, not off the character that will
+       * reference one: §20.4 makes an asset a workspace level record, and the same upload
+       * is reusable by more than one thing (§6.1 has voices and a style guide coming).
+       */
+      .route("/api/v1/workspaces", createAssetRoutes({ db, auth, store }))
   );
 }
 

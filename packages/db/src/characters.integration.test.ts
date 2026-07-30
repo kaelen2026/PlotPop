@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createPendingAsset, markAssetReady } from "./assets.js";
 import {
   addCharacterVersion,
   createCharacter,
@@ -32,7 +33,17 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  // Cascades reach workspace, series, character and character_version.
+  /*
+   * The pins go first, on purpose. `character_version_asset.asset_id` has no cascade — a
+   * file a shipped version was generated from must not disappear (§32.7) — so an asset
+   * cannot be deleted while anything still points at it, and the cascade from `user` down
+   * through `workspace` to `asset` cannot get past that on its own.
+   *
+   * The same order will be needed by whatever eventually deletes a workspace. That it
+   * fails loudly here rather than orphaning rows is the behaviour the missing cascade buys.
+   */
+  await database.db.$client.query("delete from character_version_asset");
+  // Cascades then reach workspace, series, character, character_version and asset.
   await database.db.$client.query('delete from "user"');
 });
 
@@ -371,5 +382,175 @@ describe("adding a version to a character", () => {
         characterId: created?.id as string,
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * Reference images (§32.1, §32.7).
+ *
+ * Pinned to the version, so improving a character never changes what a shipped episode was
+ * made from. Every pin is checked against the owning workspace and against `ready` in the
+ * same transaction as the version insert, because an image the creator chose must either
+ * arrive with the version or take the version down with it.
+ */
+describe("pinning reference images to a version", () => {
+  async function readyAsset(member: Member): Promise<string> {
+    const pending = await createPendingAsset(database.db, {
+      ...member,
+      purpose: "character_reference",
+      declaredContentType: "image/png",
+      declaredByteSize: 2_048,
+    });
+    const ready = await markAssetReady(database.db, {
+      ...member,
+      assetId: pending?.id as string,
+      contentType: "image/png",
+      byteSize: 2_048,
+      checksumSha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    });
+
+    return ready?.id as string;
+  }
+
+  it("keeps the order the creator gave them in", async () => {
+    // Position is how §32.1's front and back images are told apart, so the order has to be
+    // the caller's rather than whatever the database returned.
+    const nia = await memberWithSeries("nia");
+    const first = await readyAsset(nia);
+    const second = await readyAsset(nia);
+
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+      referenceAssetIds: [second, first],
+    });
+
+    expect(created?.currentVersion.referenceImages.map((image) => image.assetId)).toEqual([
+      second,
+      first,
+    ]);
+    const [listed] = await listCharactersForSeries(database.db, nia);
+    expect(listed?.currentVersion.referenceImages.map((image) => image.assetId)).toEqual([
+      second,
+      first,
+    ]);
+  });
+
+  it("leaves the earlier version's images alone when a new version drops them", async () => {
+    /*
+     * The whole reason images hang off the version. A creator who removes a photograph is
+     * describing the character from now on; the episode that already generated from version
+     * 1 has to keep finding version 1's image (§32.7).
+     */
+    const nia = await memberWithSeries("nia");
+    const assetId = await readyAsset(nia);
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+      referenceAssetIds: [assetId],
+    });
+
+    await addCharacterVersion(database.db, {
+      ...nia,
+      characterId: created?.id as string,
+      appearance: "Now with a shaved head.",
+      revision: 1,
+      referenceAssetIds: [],
+    });
+
+    const history = await listCharacterVersions(database.db, {
+      ...nia,
+      characterId: created?.id as string,
+    });
+
+    expect(history.map((version) => version.referenceImages.map((image) => image.assetId))).toEqual(
+      [[], [assetId]],
+    );
+  });
+
+  it("writes no character at all when an image cannot be pinned", async () => {
+    // Committing the character without the image would leave a creator with a reference
+    // photograph they chose, no error, and no way to tell it was dropped.
+    const nia = await memberWithSeries("nia");
+    const ravi = await memberWithSeries("ravi");
+    const raviAsset = await readyAsset(ravi);
+
+    const attempt = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+      referenceAssetIds: [raviAsset],
+    });
+
+    expect(attempt).toBeNull();
+    expect(await listCharactersForSeries(database.db, nia)).toEqual([]);
+  });
+
+  it("refuses an asset belonging to another workspace", async () => {
+    const nia = await memberWithSeries("nia");
+    const ravi = await memberWithSeries("ravi");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+
+    expect(
+      await addCharacterVersion(database.db, {
+        ...nia,
+        characterId: created?.id as string,
+        appearance: "With Ravi's photograph.",
+        revision: 1,
+        referenceAssetIds: [await readyAsset(ravi)],
+      }),
+    ).toEqual({ outcome: "missing" });
+
+    // And the version really was not appended, which the outcome alone would not say.
+    const history = await listCharacterVersions(database.db, {
+      ...nia,
+      characterId: created?.id as string,
+    });
+    expect(history).toHaveLength(1);
+  });
+
+  it("refuses an asset whose bytes were never confirmed", async () => {
+    // A `pending` asset has bytes nobody has read (§26). Pinning one would make an
+    // unchecked file a generation input.
+    const nia = await memberWithSeries("nia");
+    const pending = await createPendingAsset(database.db, {
+      ...nia,
+      purpose: "character_reference",
+      declaredContentType: "image/png",
+      declaredByteSize: 2_048,
+    });
+
+    expect(
+      await createCharacter(database.db, {
+        ...nia,
+        name: "Ada",
+        appearance: APPEARANCE,
+        referenceAssetIds: [pending?.id as string],
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses to delete an asset a version pinned", async () => {
+    // Not a Zod concern: the file a shipped episode was generated from cannot go away, so
+    // the foreign key refuses rather than cascading (§32.7).
+    const nia = await memberWithSeries("nia");
+    const assetId = await readyAsset(nia);
+
+    await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+      referenceAssetIds: [assetId],
+    });
+
+    await expect(
+      database.db.$client.query("delete from asset where id = $1", [assetId]),
+    ).rejects.toThrow(/character_version_asset/);
   });
 });

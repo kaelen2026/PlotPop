@@ -30,10 +30,32 @@ function copyModules(): string[] {
     .map(namespaceFor);
 }
 
-function stringsIn(value: unknown, path: string): [string, unknown][] {
-  if (typeof value !== "object" || value === null) return [[path, value]];
+/**
+ * Copy that interpolates is a function, and the gate has to see inside it: a template that
+ * reads a value the caller does not pass produces "undefined" in the middle of a sentence,
+ * which is exactly the placeholder copy this file exists to catch.
+ *
+ * The probe is a label and a number, which is every shape copy needs so far — extra
+ * arguments are ignored, so one tuple covers each arity.
+ */
+const COPY_PROBE = ["Ada", 1] as const;
 
-  return Object.entries(value).flatMap(([key, nested]) =>
+function resolve(value: unknown): unknown {
+  if (typeof value !== "function") return value;
+
+  const rendered: unknown = value(...COPY_PROBE);
+
+  // An unfilled slot renders as one of these rather than as an empty string, so a blank
+  // check alone would pass it.
+  return typeof rendered === "string" && /undefined|NaN|\[object/.test(rendered) ? "" : rendered;
+}
+
+function stringsIn(value: unknown, path: string): [string, unknown][] {
+  const resolved = resolve(value);
+
+  if (typeof resolved !== "object" || resolved === null) return [[path, resolved]];
+
+  return Object.entries(resolved).flatMap(([key, nested]) =>
     stringsIn(nested, path === "" ? key : `${path}.${key}`),
   );
 }

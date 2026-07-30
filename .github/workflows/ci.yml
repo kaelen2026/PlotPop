@@ -112,8 +112,15 @@ jobs:
   # PostgreSQL is here because the gates run against a real api: the chain from the
   # browser through Next's rewrite to Better Auth and a provisioned workspace is
   # what these specs are for, and every link of it is configuration that fails
-  # silently. Redis and object storage are deliberately absent — nothing under test
-  # needs them, which is why the api is waited on at `/health` rather than `/ready`.
+  # silently.
+  #
+  # Object storage is here for the same reason. `.claude/rules/tdd.md` §6 makes it a
+  # mocked boundary everywhere else, so this is the only layer that proves the api
+  # signs a url the browser can reach, that MinIO accepts a cross-origin PUT of
+  # exactly the signed length, and that the signed GET serves the bytes back (§26).
+  #
+  # Redis is still absent — nothing under test needs a queue — which is why the api is
+  # waited on at `/health` rather than `/ready`.
   browser:
     name: Browser gates
     runs-on: ubuntu-latest
@@ -147,6 +154,16 @@ jobs:
       # environment `pnpm build` does; see the quality gates job.
       - name: Local environment
         run: cp .env.example .env
+
+      # Not a service container: the `minio/minio` image needs a `server` subcommand,
+      # and a service block cannot supply one. Brought up from the compose file local
+      # development already uses, so the pinned image and the bucket the api expects
+      # are declared once rather than drifting between here and a developer's machine.
+      # The published port matches the endpoints in `.env.example`.
+      - name: Object storage
+        run: |
+          docker compose -f docker/compose.yaml up --detach --wait minio
+          docker compose -f docker/compose.yaml up --exit-code-from minio-bucket minio-bucket
 
       # `--with-deps` installs the system libraries the browser needs; the browser
       # build itself belongs to the pinned @playwright/test version.

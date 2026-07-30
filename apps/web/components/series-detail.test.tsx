@@ -33,7 +33,12 @@ function character(name: string, id: string, version: number, appearance: string
     name,
     revision: 1,
     createdAt: "2026-07-30T09:00:00.000Z",
-    currentVersion: { version, appearance, createdAt: "2026-07-30T09:00:00.000Z" },
+    currentVersion: {
+      version,
+      appearance,
+      referenceImages: [],
+      createdAt: "2026-07-30T09:00:00.000Z",
+    },
   };
 }
 

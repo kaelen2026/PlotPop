@@ -10,6 +10,7 @@ import {
 } from "@plotpop/observability";
 import { createApp } from "./app.js";
 import { createApiAuthService } from "./auth-service.js";
+import { createS3ObjectStore } from "./storage.js";
 
 // Parsed before the server binds: a container missing a credential should fail
 // its own startup, not its first request.
@@ -39,6 +40,8 @@ const readiness = createReadinessReporter({
   ],
 });
 
-serve({ fetch: createApp({ readiness, auth, db }).fetch, port: config.port }, (info) => {
+const store = createS3ObjectStore(config.storage);
+
+serve({ fetch: createApp({ readiness, auth, db, store }).fetch, port: config.port }, (info) => {
   logger.info("listening", { port: info.port, nodeEnv: config.nodeEnv });
 });

@@ -1,3 +1,4 @@
+export * from "./assets.js";
 export * from "./characters.js";
 export * from "./client.js";
 export * from "./migration-source.js";

@@ -1,8 +1,41 @@
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database } from "./client.js";
-import { character, characterVersion, series, workspaceMember } from "./schema.js";
+import {
+  asset,
+  character,
+  characterVersion,
+  characterVersionAsset,
+  series,
+  workspaceMember,
+} from "./schema.js";
 import type { WorkspaceScope } from "./series.js";
+
+/**
+ * The handle inside `db.transaction`. Named here because the reference image helpers below
+ * only ever run inside one — pinning has to share the transaction that wrote the version.
+ */
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
+ * One reference image a version pins (§32.1).
+ *
+ * The storage key is here because signing a url from it is the api's job, not this
+ * package's: the key never leaves the api, and what reaches a caller is a short-lived
+ * signed url (§26).
+ */
+export type CharacterReferenceImage = {
+  readonly assetId: string;
+  readonly contentType: string;
+  readonly storageKey: string;
+};
+
+export type CharacterVersionRecord = {
+  readonly version: number;
+  readonly appearance: string;
+  readonly referenceImages: readonly CharacterReferenceImage[];
+  readonly createdAt: Date;
+};
 
 /** A character as the api reads it, with the version a new episode would use. */
 export type CharacterRecord = {
@@ -10,11 +43,7 @@ export type CharacterRecord = {
   readonly name: string;
   readonly revision: number;
   readonly createdAt: Date;
-  readonly currentVersion: {
-    readonly version: number;
-    readonly appearance: string;
-    readonly createdAt: Date;
-  };
+  readonly currentVersion: CharacterVersionRecord;
 };
 
 /** The same table again, so the "which version is current" subquery can correlate to it. */
@@ -40,6 +69,59 @@ function withinReachableSeries(scope: SeriesScope) {
 }
 
 /**
+ * The reference images belonging to a set of versions, grouped by version id.
+ *
+ * One query for the whole set rather than one per version: a cast of ten characters would
+ * otherwise be eleven round trips, and the number of versions in a history is unbounded.
+ * Callers have already scoped the version ids through the series, so this does not repeat
+ * the ownership condition — it is reading rows it was handed the keys to.
+ */
+async function referenceImagesByVersion(
+  db: Database | Transaction,
+  versionIds: readonly string[],
+): Promise<Map<string, CharacterReferenceImage[]>> {
+  const grouped = new Map<string, CharacterReferenceImage[]>();
+
+  if (versionIds.length === 0) return grouped;
+
+  const rows = await db
+    .select({
+      characterVersionId: characterVersionAsset.characterVersionId,
+      assetId: asset.id,
+      contentType: asset.contentType,
+      storageKey: asset.storageKey,
+    })
+    .from(characterVersionAsset)
+    .innerJoin(asset, eq(asset.id, characterVersionAsset.assetId))
+    .where(inArray(characterVersionAsset.characterVersionId, [...versionIds]))
+    .orderBy(asc(characterVersionAsset.position));
+
+  for (const row of rows) {
+    /*
+     * `content_type` is nullable on the table but cannot be null here: only a `ready` asset
+     * is ever pinned (see `pinReferenceImages`), and `asset_ready_is_verified` forbids a
+     * ready row without one. Raising rather than substituting a value, because there is no
+     * sensible answer to "what type is this file" and inventing one would put a broken
+     * image on a page instead of a report that the database was written to behind our back.
+     */
+    if (row.contentType === null) {
+      throw new Error(`Asset ${row.assetId} is pinned to a version but was never verified`);
+    }
+
+    const images = grouped.get(row.characterVersionId) ?? [];
+
+    images.push({
+      assetId: row.assetId,
+      contentType: row.contentType,
+      storageKey: row.storageKey,
+    });
+    grouped.set(row.characterVersionId, images);
+  }
+
+  return grouped;
+}
+
+/**
  * One series' cast, oldest first, each with its current version.
  *
  * Oldest first, unlike the series library: a cast is read as a cast, and people remember
@@ -59,6 +141,7 @@ export async function listCharactersForSeries(
       name: character.name,
       revision: character.revision,
       createdAt: character.createdAt,
+      versionId: characterVersion.id,
       version: characterVersion.version,
       appearance: characterVersion.appearance,
       versionCreatedAt: characterVersion.createdAt,
@@ -89,6 +172,13 @@ export async function listCharactersForSeries(
     .where(withinReachableSeries(scope))
     .orderBy(asc(character.createdAt), asc(character.id));
 
+  // A second query for the whole cast's images rather than one per character: two round
+  // trips whatever the cast size.
+  const images = await referenceImagesByVersion(
+    db,
+    rows.map((row) => row.versionId),
+  );
+
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
@@ -97,6 +187,7 @@ export async function listCharactersForSeries(
     currentVersion: {
       version: row.version,
       appearance: row.appearance,
+      referenceImages: images.get(row.versionId) ?? [],
       createdAt: row.versionCreatedAt,
     },
   }));
@@ -105,7 +196,86 @@ export async function listCharactersForSeries(
 export type CharacterCreation = SeriesScope & {
   readonly name: string;
   readonly appearance: string;
+  /**
+   * Assets already uploaded and confirmed, in the order they should be pinned.
+   *
+   * Optional with the same default as `characterCreateInputSchema`, so the decision about
+   * what "no images given" means is made once rather than differently at each layer.
+   */
+  readonly referenceAssetIds?: readonly string[];
 };
+
+/**
+ * Raised when a version was asked to pin an asset it may not have.
+ *
+ * A distinct error rather than a `null` return, because it has to abort the surrounding
+ * transaction: the character or version being written must not commit having silently
+ * dropped an image the creator chose. The callers turn it back into the same "not found"
+ * every other unreachable id produces.
+ */
+class UnreachableAssetError extends Error {
+  override readonly name = "UnreachableAssetError";
+}
+
+/**
+ * Pins assets to a version, in the order given.
+ *
+ * Every id is checked against the workspace that owns the series and against `ready` in the
+ * same transaction as the insert. Both halves matter: an asset from someone else's
+ * workspace must not be reachable by guessing an id, and a `pending` one has bytes nobody
+ * has verified — pinning it would put an unchecked file into a generation input.
+ *
+ * The count comparison is what makes this total: anything filtered out by either condition
+ * is missing from the result, so there is no id that can be quietly skipped.
+ */
+async function pinReferenceImages(
+  tx: Transaction,
+  input: {
+    readonly characterVersionId: string;
+    readonly workspaceId: string;
+    readonly assetIds: readonly string[];
+  },
+): Promise<CharacterReferenceImage[]> {
+  if (input.assetIds.length === 0) return [];
+
+  const usable = await tx
+    .select({ id: asset.id, contentType: asset.contentType, storageKey: asset.storageKey })
+    .from(asset)
+    .where(
+      and(
+        inArray(asset.id, [...input.assetIds]),
+        eq(asset.workspaceId, input.workspaceId),
+        eq(asset.status, "ready"),
+      ),
+    );
+
+  if (usable.length !== input.assetIds.length) throw new UnreachableAssetError();
+
+  const byId = new Map(usable.map((row) => [row.id, row]));
+  // The caller's order, not the order the database happened to return them in: position is
+  // how §32.1's front and back images are told apart.
+  const ordered = input.assetIds.map((assetId, position) => {
+    const found = byId.get(assetId);
+
+    if (found === undefined || found.contentType === null) throw new UnreachableAssetError();
+
+    return { assetId, position, contentType: found.contentType, storageKey: found.storageKey };
+  });
+
+  await tx.insert(characterVersionAsset).values(
+    ordered.map((image) => ({
+      characterVersionId: input.characterVersionId,
+      assetId: image.assetId,
+      position: image.position,
+    })),
+  );
+
+  return ordered.map(({ assetId, contentType, storageKey }) => ({
+    assetId,
+    contentType,
+    storageKey,
+  }));
+}
 
 /**
  * Creates a character together with its first version, or returns `null` if the caller
@@ -120,47 +290,68 @@ export async function createCharacter(
   db: Database,
   creation: CharacterCreation,
 ): Promise<CharacterRecord | null> {
-  return db.transaction(async (tx) => {
-    const reachable = await tx
-      .select({ seriesId: series.id })
-      .from(series)
-      .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
-      .where(withinReachableSeries(creation))
-      .limit(1);
+  try {
+    return await db.transaction(async (tx) => {
+      const reachable = await tx
+        .select({ seriesId: series.id, workspaceId: series.workspaceId })
+        .from(series)
+        .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
+        .where(withinReachableSeries(creation))
+        .limit(1);
 
-    const found = reachable[0];
+      const found = reachable[0];
 
-    if (found === undefined) return null;
+      if (found === undefined) return null;
 
-    const created = await tx
-      .insert(character)
-      .values({ seriesId: found.seriesId, name: creation.name })
-      .returning({
-        id: character.id,
-        name: character.name,
-        revision: character.revision,
-        createdAt: character.createdAt,
+      const created = await tx
+        .insert(character)
+        .values({ seriesId: found.seriesId, name: creation.name })
+        .returning({
+          id: character.id,
+          name: character.name,
+          revision: character.revision,
+          createdAt: character.createdAt,
+        });
+
+      const identity = created[0];
+
+      if (identity === undefined) return null;
+
+      const versions = await tx
+        .insert(characterVersion)
+        .values({ characterId: identity.id, version: 1, appearance: creation.appearance })
+        .returning({
+          id: characterVersion.id,
+          version: characterVersion.version,
+          appearance: characterVersion.appearance,
+          createdAt: characterVersion.createdAt,
+        });
+
+      const version = versions[0];
+
+      if (version === undefined) return null;
+
+      /*
+       * In the same transaction as both rows above. An unusable asset id therefore takes
+       * the character with it rather than creating one whose images were silently dropped —
+       * a creator who chose a reference image and got a character without it would have no
+       * way to tell that anything went wrong.
+       */
+      const { id: versionId, ...versionColumns } = version;
+      const referenceImages = await pinReferenceImages(tx, {
+        characterVersionId: versionId,
+        workspaceId: found.workspaceId,
+        assetIds: creation.referenceAssetIds ?? [],
       });
 
-    const identity = created[0];
-
-    if (identity === undefined) return null;
-
-    const versions = await tx
-      .insert(characterVersion)
-      .values({ characterId: identity.id, version: 1, appearance: creation.appearance })
-      .returning({
-        version: characterVersion.version,
-        appearance: characterVersion.appearance,
-        createdAt: characterVersion.createdAt,
-      });
-
-    const version = versions[0];
-
-    if (version === undefined) return null;
-
-    return { ...identity, currentVersion: version };
-  });
+      return { ...identity, currentVersion: { ...versionColumns, referenceImages } };
+    });
+  } catch (error) {
+    // Answered exactly as an unreachable series is: a caller learns nothing about whether
+    // the asset id they guessed exists.
+    if (error instanceof UnreachableAssetError) return null;
+    throw error;
+  }
 }
 
 /** A character, and the version of it a caller is asking about. */
@@ -168,25 +359,22 @@ export type CharacterScope = SeriesScope & {
   readonly characterId: string;
 };
 
-export type CharacterVersionRecord = {
-  readonly version: number;
-  readonly appearance: string;
-  readonly createdAt: Date;
-};
-
 /**
  * One character's versions, newest first — the history §32.7 keeps so a creator can see
  * what an older episode was made with.
  *
  * Scoped through the series and the workspace like every other read here, so a character
- * id from someone else's series has no history to show.
+ * id from someone else's series has no history to show. Each version carries the images it
+ * pinned, which is the point of keeping the history at all: what an older episode was made
+ * from includes what it looked at.
  */
 export async function listCharacterVersions(
   db: Database,
   scope: CharacterScope,
 ): Promise<CharacterVersionRecord[]> {
-  return db
+  const rows = await db
     .select({
+      id: characterVersion.id,
       version: characterVersion.version,
       appearance: characterVersion.appearance,
       createdAt: characterVersion.createdAt,
@@ -197,12 +385,29 @@ export async function listCharacterVersions(
     .innerJoin(workspaceMember, eq(workspaceMember.workspaceId, series.workspaceId))
     .where(and(eq(character.id, scope.characterId), withinReachableSeries(scope)))
     .orderBy(desc(characterVersion.version));
+
+  const images = await referenceImagesByVersion(
+    db,
+    rows.map((row) => row.id),
+  );
+
+  return rows.map((row) => ({
+    version: row.version,
+    appearance: row.appearance,
+    referenceImages: images.get(row.id) ?? [],
+    createdAt: row.createdAt,
+  }));
 }
 
 export type CharacterVersionAddition = CharacterScope & {
   readonly appearance: string;
   /** §20.6: the character's revision as the caller read it. */
   readonly revision: number;
+  /**
+   * What this version pins, in full. Omitting an image the previous version had removes it
+   * from this one — a version is a snapshot, not a change to the last one.
+   */
+  readonly referenceAssetIds?: readonly string[];
 };
 
 /**
@@ -231,6 +436,25 @@ export type CharacterVersionResult =
  * mechanism.
  */
 export async function addCharacterVersion(
+  db: Database,
+  addition: CharacterVersionAddition,
+): Promise<CharacterVersionResult> {
+  try {
+    return await appendVersion(db, addition);
+  } catch (error) {
+    /*
+     * An asset the caller may not pin aborts the whole append, so the version never
+     * commits with the image missing. Reported as `missing` rather than a fourth outcome:
+     * from the caller's side an id they cannot use and an id that does not exist are the
+     * same fact, and distinguishing them would tell a stranger which of their guesses
+     * named a real file.
+     */
+    if (error instanceof UnreachableAssetError) return { outcome: "missing" };
+    throw error;
+  }
+}
+
+async function appendVersion(
   db: Database,
   addition: CharacterVersionAddition,
 ): Promise<CharacterVersionResult> {
@@ -282,6 +506,7 @@ export async function addCharacterVersion(
       .insert(characterVersion)
       .values({ characterId: identity.id, version: nextVersion, appearance: addition.appearance })
       .returning({
+        id: characterVersion.id,
         version: characterVersion.version,
         appearance: characterVersion.appearance,
         createdAt: characterVersion.createdAt,
@@ -291,6 +516,29 @@ export async function addCharacterVersion(
 
     if (version === undefined) return { outcome: "missing" };
 
-    return { outcome: "versioned", character: { ...identity, currentVersion: version } };
+    // The series' workspace, read here rather than taken from the scope, for the same
+    // reason `createSeries` writes the id its own query returned.
+    const owning = await tx
+      .select({ workspaceId: series.workspaceId })
+      .from(series)
+      .innerJoin(character, eq(character.seriesId, series.id))
+      .where(eq(character.id, identity.id))
+      .limit(1);
+
+    const workspaceId = owning[0]?.workspaceId;
+
+    if (workspaceId === undefined) return { outcome: "missing" };
+
+    const { id: versionId, ...versionColumns } = version;
+    const referenceImages = await pinReferenceImages(tx, {
+      characterVersionId: versionId,
+      workspaceId,
+      assetIds: addition.referenceAssetIds ?? [],
+    });
+
+    return {
+      outcome: "versioned",
+      character: { ...identity, currentVersion: { ...versionColumns, referenceImages } },
+    };
   });
 }

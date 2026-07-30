@@ -111,8 +111,25 @@ function toBackendConfig(env: z.infer<typeof backingServiceSchema>, port: number
   };
 }
 
+/**
+ * The storage origin a browser is sent to, held by the api alone.
+ *
+ * §26 has the browser upload straight to object storage through a signed url, and SigV4
+ * signs the host. The api reaches storage on an internal address — `http://minio:9000`
+ * inside Compose, a private endpoint in a deployment — which no browser can resolve, so
+ * the address it signs for is a separate value.
+ *
+ * Required rather than defaulting to `STORAGE_ENDPOINT`: a fallback would sign urls for
+ * an unreachable host, turning a missing variable into a failed upload for every user
+ * instead of a failed startup for the operator. The worker has no counterpart because it
+ * never hands a url to anyone (ADR-001).
+ */
+const apiStorageFields = {
+  STORAGE_PUBLIC_ENDPOINT: httpUrlSchema,
+};
+
 const apiEnvSchema = backingServiceSchema
-  .extend({ API_PORT: portSchema.default(3001), ...authFields })
+  .extend({ API_PORT: portSchema.default(3001), ...authFields, ...apiStorageFields })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "production") return;
 
@@ -128,14 +145,19 @@ const apiEnvSchema = backingServiceSchema
       });
     }
   })
-  .transform((env) => ({
-    ...toBackendConfig(env, env.API_PORT),
-    auth: {
-      secret: env.BETTER_AUTH_SECRET,
-      baseUrl: env.AUTH_BASE_URL,
-      trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
-    },
-  }));
+  .transform((env) => {
+    const backend = toBackendConfig(env, env.API_PORT);
+
+    return {
+      ...backend,
+      storage: { ...backend.storage, publicEndpoint: env.STORAGE_PUBLIC_ENDPOINT },
+      auth: {
+        secret: env.BETTER_AUTH_SECRET,
+        baseUrl: env.AUTH_BASE_URL,
+        trustedOrigins: env.AUTH_TRUSTED_ORIGINS,
+      },
+    };
+  });
 
 const workerEnvSchema = backingServiceSchema
   .extend({ WORKER_PORT: portSchema.default(3002) })
