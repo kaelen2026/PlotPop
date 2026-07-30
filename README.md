@@ -79,8 +79,11 @@ Start the dependencies first, then the services:
 pnpm install
 cp .env.example .env
 pnpm docker:up      # PostgreSQL, Redis, storage, api and worker, waits until healthy
+pnpm db:migrate     # applies the schema to that database
 pnpm dev            # web + api + worker from source
 ```
+
+`pnpm db:migrate` is not optional on a fresh database and is not a step the stack performs for you: no service migrates on boot, and Compose has no migration job, so skipping it leaves every service healthy and every query broken against a database with no tables. Run it again after pulling a branch that adds migrations. It builds the api first, because it runs the migrator directly rather than through Turborepo, and the shared packages resolve through `dist`.
 
 `pnpm docker:up` also runs the api and worker as containers. To develop against the dependencies alone, stop those two: `docker compose -f docker/compose.yaml stop api worker`. Published ports bind to loopback only and can be moved when a machine already has a PostgreSQL of its own:
 
