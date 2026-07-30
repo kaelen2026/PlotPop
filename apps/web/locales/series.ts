@@ -104,6 +104,8 @@ export const series = {
        */
       alt: (characterName: string, position: number) =>
         `Reference image ${position} for ${characterName}`,
+      /** The create form uploads before the name is necessarily typed; "for " alone is worse. */
+      altNew: (position: number) => `Reference image ${position} for the new character`,
       remove: "Remove",
       uploading: "Uploading…",
       errors: {
