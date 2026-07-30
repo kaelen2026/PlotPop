@@ -55,6 +55,10 @@ docker run --detach --name "$container" --init \
   --env "DATABASE_URL=postgresql://plotpop:smoke@${dead}/plotpop" \
   --env "REDIS_URL=redis://${dead}" \
   --env "STORAGE_ENDPOINT=http://${dead}" \
+  `# The api signs browser-facing upload urls for a different address than it reads` \
+  `# through (§26). Unreachable like the rest of them: this checks that the process` \
+  `# starts and reports itself alive, not that it can store anything.` \
+  --env "STORAGE_PUBLIC_ENDPOINT=http://${dead}" \
   --env "STORAGE_BUCKET=smoke" \
   --env "STORAGE_ACCESS_KEY_ID=smoke" \
   --env "STORAGE_SECRET_ACCESS_KEY=smoke" \
