@@ -15,6 +15,15 @@ export const apiErrorCodeSchema = z.enum([
   "not_found",
   "conflict",
   "validation_failed",
+  /**
+   * The bytes of an upload are not what was declared (§26).
+   *
+   * Separate from `validation_failed`, which assumes a request that could not have come
+   * from our own form: a form can check the type the browser reports and the size, but
+   * not what is inside the file. A photograph renamed `.png` passes every client side
+   * check there is, so this is an ordinary outcome that needs its own answer.
+   */
+  "unsupported_media",
   "internal_error",
 ]);
 

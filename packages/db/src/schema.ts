@@ -107,6 +107,55 @@ export const series = pgTable(
   ],
 );
 
+/**
+ * §20.4 and §26: an immutable record of one file in object storage.
+ * `migrations/0004_asset.sql`, which explains why the row exists before the bytes do.
+ *
+ * The declared columns are what a client claimed; the unprefixed ones are what the bytes
+ * turned out to be. They are separate so that "the client said png" and "we read png"
+ * cannot be confused for each other.
+ */
+export const asset = pgTable(
+  "asset",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    status: text("status").notNull().default("pending"),
+    storageKey: text("storage_key").notNull(),
+    declaredContentType: text("declared_content_type").notNull(),
+    declaredByteSize: bigint("declared_byte_size", { mode: "number" }).notNull(),
+    contentType: text("content_type"),
+    byteSize: bigint("byte_size", { mode: "number" }),
+    checksumSha256: text("checksum_sha256"),
+    rightsConfirmedAt: timestamp("rights_confirmed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("asset_storage_key_unique").on(table.storageKey),
+    index("asset_workspace_id_id_idx").on(table.workspaceId, table.id),
+    check("asset_purpose_known", sql`${table.purpose} in ('character_reference')`),
+    check("asset_status_known", sql`${table.status} in ('pending', 'ready', 'rejected')`),
+    check("asset_declared_byte_size_positive", sql`${table.declaredByteSize} > 0`),
+    check("asset_byte_size_positive", sql`${table.byteSize} is null or ${table.byteSize} > 0`),
+    check(
+      "asset_checksum_sha256_format",
+      sql`${table.checksumSha256} is null or ${table.checksumSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    // A ready asset is one whose bytes were read. See the migration for why this is a
+    // database constraint and not a check in application code.
+    check(
+      "asset_ready_is_verified",
+      sql`${table.status} <> 'ready' or (${table.contentType} is not null and ${table.byteSize} is not null and ${table.checksumSha256} is not null and ${table.confirmedAt} is not null)`,
+    ),
+  ],
+);
+
 /** §20.2: the identity that stays put across a series' episodes. `migrations/0003_character.sql`. */
 export const character = pgTable(
   "character",

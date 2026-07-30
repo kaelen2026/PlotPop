@@ -5,6 +5,7 @@ import { createLogger } from "@plotpop/observability";
 import { createApp } from "../app.js";
 import { createApiAuthService } from "../auth-service.js";
 import { migrationSources } from "../migrations.js";
+import { createFakeObjectStore, type FakeObjectStore } from "./object-store.js";
 
 /*
  * Test-only wiring. Excluded from the build in `tsconfig.json`, so nothing here
@@ -24,6 +25,8 @@ export type ApiHarness = {
   readonly app: ReturnType<typeof createApp>;
   readonly auth: AuthService;
   readonly db: Database;
+  /** In memory: `.claude/rules/tdd.md` §6 makes object storage one of the faked boundaries. */
+  readonly store: FakeObjectStore;
   readonly origin: string;
   close(): Promise<void>;
 };
@@ -42,9 +45,11 @@ export async function createApiHarness(): Promise<ApiHarness> {
     useSecureCookies: false,
   });
 
+  const store = createFakeObjectStore();
   const app = createApp({
     auth,
     db: database.db,
+    store,
     readiness: async () => ({ status: "ready", service: "api", dependencies: [] }),
   });
 
@@ -52,6 +57,7 @@ export async function createApiHarness(): Promise<ApiHarness> {
     app,
     auth,
     db: database.db,
+    store,
     origin: WEB_ORIGIN,
     close: () => database.drop(),
   };

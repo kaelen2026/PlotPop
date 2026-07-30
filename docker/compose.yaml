@@ -135,6 +135,11 @@ services:
       # `/api/*` here, so it is the web origin rather than this container's port.
       AUTH_BASE_URL: http://localhost:3000
       AUTH_TRUSTED_ORIGINS: http://localhost:3000
+      # Where the browser is sent for a signed upload (§26). The shared block above
+      # reaches MinIO as `minio:9000`, which resolves on this network and nowhere
+      # else; SigV4 signs the host, so the signed url has to name the published port.
+      # The worker has no counterpart: it never hands a url to anyone (ADR-001).
+      STORAGE_PUBLIC_ENDPOINT: http://localhost:${STORAGE_HOST_PORT:-9000}
     ports:
       - "127.0.0.1:${API_HOST_PORT:-3001}:3001"
     depends_on:

@@ -39,6 +39,27 @@ export function revisionConflict(): ApiError {
 }
 
 /**
+ * The uploaded bytes are not the kind of file they were declared to be (§26).
+ *
+ * `action` is `none` because sending the same file again cannot help — the creator has to
+ * choose a different one. That is also why this is not `validation_failed`: the form
+ * checked everything it could see, and what it could not see was inside the file.
+ */
+export function unsupportedMedia(): ApiError {
+  return apiError("unsupported_media", "errors.unsupportedMedia", "none");
+}
+
+/**
+ * The object is not in storage yet, so there is nothing to confirm.
+ *
+ * `retry` rather than `none`: the upload may still be in flight, and unlike a revision
+ * conflict the same request will succeed once it lands.
+ */
+export function uploadIncomplete(): ApiError {
+  return apiError("conflict", "errors.uploadIncomplete", "retry");
+}
+
+/**
  * The body did not match the contract.
  *
  * Which field failed is deliberately absent: the same Zod schema validated the

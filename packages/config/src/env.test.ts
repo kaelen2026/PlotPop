@@ -11,7 +11,8 @@ const authSecret = "auth-local-secret-with-enough-entropy";
 const backendEnv = {
   DATABASE_URL: databaseUrl,
   REDIS_URL: redisUrl,
-  STORAGE_ENDPOINT: "http://localhost:9000",
+  STORAGE_ENDPOINT: "http://minio:9000",
+  STORAGE_PUBLIC_ENDPOINT: "http://localhost:9000",
   STORAGE_BUCKET: "plotpop-local",
   STORAGE_ACCESS_KEY_ID: "plotpop-local",
   STORAGE_SECRET_ACCESS_KEY: "storage-local-secret",
@@ -34,7 +35,8 @@ describe("api environment", () => {
       database: { url: databaseUrl },
       redis: { url: redisUrl },
       storage: {
-        endpoint: "http://localhost:9000",
+        endpoint: "http://minio:9000",
+        publicEndpoint: "http://localhost:9000",
         region: "us-east-1",
         bucket: "plotpop-local",
         accessKeyId: "plotpop-local",
@@ -95,6 +97,20 @@ describe("api environment", () => {
       expect((error as Error).message).toContain("AUTH_BASE_URL");
       expect((error as Error).message).not.toContain(authSecret);
     }
+  });
+
+  /*
+   * §26: the browser uploads straight to object storage through a signed url, and the
+   * host is part of what gets signed. The api reaches storage on an internal address
+   * that a browser cannot resolve, so the address it signs for is a separate variable.
+   */
+  it("requires the browser facing storage origin rather than falling back to its own", () => {
+    const { STORAGE_PUBLIC_ENDPOINT: _public, ...withoutPublicEndpoint } = apiEnv;
+
+    // Defaulting to STORAGE_ENDPOINT would sign urls for an unreachable internal host,
+    // which fails at the first upload instead of at startup — and in production it
+    // would leak the internal address into a browser.
+    expect(() => parseApiEnv(withoutPublicEndpoint)).toThrow(/STORAGE_PUBLIC_ENDPOINT/);
   });
 
   it("coerces the port to a number so the http server is not handed a string", () => {
@@ -174,6 +190,14 @@ describe("worker environment", () => {
   // one. Parsing drops the secret even when the process was handed it.
   it("carries no session signing secret", () => {
     expect(parseWorkerEnv(apiEnv)).not.toHaveProperty("auth");
+  });
+
+  // The worker never hands a url to a browser: it reaches storage on the internal
+  // address and signs nothing for anyone else. Parsing drops the public origin for the
+  // same reason it drops the auth secret — the configuration should not suggest a
+  // capability the service has no business having.
+  it("carries no browser facing storage origin", () => {
+    expect(parseWorkerEnv(apiEnv).storage).not.toHaveProperty("publicEndpoint");
   });
 });
 
