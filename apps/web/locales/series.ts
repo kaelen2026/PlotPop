@@ -82,6 +82,26 @@ export const series = {
       pending: "Adding…",
       failed: "We could not add that character. Please try again.",
     },
+    /** Editing a character produces a new version rather than replacing the old one (§32.7). */
+    update: {
+      action: "Update appearance",
+      submit: "Save as new version",
+      cancel: "Cancel",
+      pending: "Saving…",
+      failed: "We could not save that version. Please try again.",
+      conflict:
+        "This character changed somewhere else. Reload to see its current appearance, then edit again.",
+      reload: "Reload",
+    },
+    history: {
+      show: "Earlier versions",
+      hide: "Hide earlier versions",
+      heading: "Version history",
+      loading: "Loading…",
+      failed: "We could not load the earlier versions. Please try again.",
+      /** Every character has a first version, so this is what an unversioned edit leaves. */
+      only: "This character has one version so far.",
+    },
   },
 } as const;
 

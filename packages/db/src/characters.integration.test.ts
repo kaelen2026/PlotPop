@@ -1,5 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createCharacter, listCharactersForSeries } from "./characters.js";
+import {
+  addCharacterVersion,
+  createCharacter,
+  listCharactersForSeries,
+  listCharacterVersions,
+} from "./characters.js";
 import { coreMigrationSource } from "./migration-source.js";
 import { applyMigrations } from "./migrations.js";
 import { WORKSPACE_OWNER_ROLE } from "./schema.js";
@@ -209,5 +214,162 @@ describe("listing a series' cast", () => {
     expect((await listCharactersForSeries(database.db, nia)).map((entry) => entry.name)).toEqual([
       "Ada",
     ]);
+  });
+});
+
+describe("adding a version to a character", () => {
+  it("appends the next version and leaves the earlier one exactly as it was", async () => {
+    const nia = await memberWithSeries("nia");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+    const characterId = created?.id as string;
+
+    const result = await addCharacterVersion(database.db, {
+      ...nia,
+      characterId,
+      appearance: "Now with a shaved head.",
+      revision: created?.revision as number,
+    });
+
+    expect(result).toEqual({
+      outcome: "versioned",
+      character: expect.objectContaining({
+        id: characterId,
+        name: "Ada",
+        // The identity's revision moves so the next writer has to carry it back (§20.6).
+        revision: 2,
+        currentVersion: expect.objectContaining({
+          version: 2,
+          appearance: "Now with a shaved head.",
+        }),
+      }),
+    });
+
+    /*
+     * The point of §32.7: an episode generated with version 1 has to keep finding version
+     * 1, unchanged. History is appended to, never rewritten.
+     */
+    const versions = await listCharacterVersions(database.db, { ...nia, characterId });
+    expect(versions.map((entry) => [entry.version, entry.appearance])).toEqual([
+      [2, "Now with a shaved head."],
+      [1, APPEARANCE],
+    ]);
+  });
+
+  it("refuses a version that carries a revision the character has moved past", async () => {
+    const nia = await memberWithSeries("nia");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+    const characterId = created?.id as string;
+    const fromRevisionOne = { ...nia, characterId, appearance: "Second", revision: 1 };
+
+    expect((await addCharacterVersion(database.db, fromRevisionOne)).outcome).toBe("versioned");
+
+    const stale = await addCharacterVersion(database.db, {
+      ...fromRevisionOne,
+      appearance: "From A Stale Tab",
+    });
+
+    expect(stale).toEqual({ outcome: "stale" });
+    // Nothing was appended: a refused write leaves no version behind to explain later.
+    expect(
+      (await listCharacterVersions(database.db, { ...nia, characterId })).map(
+        (entry) => entry.version,
+      ),
+    ).toEqual([2, 1]);
+  });
+
+  it("keeps one of two concurrent versions and reports the other as stale", async () => {
+    const nia = await memberWithSeries("nia");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+    const characterId = created?.id as string;
+
+    const [first, second] = await Promise.all([
+      addCharacterVersion(database.db, {
+        ...nia,
+        characterId,
+        appearance: "From Tab One",
+        revision: 1,
+      }),
+      addCharacterVersion(database.db, {
+        ...nia,
+        characterId,
+        appearance: "From Tab Two",
+        revision: 1,
+      }),
+    ]);
+
+    expect([first.outcome, second.outcome].sort()).toEqual(["stale", "versioned"]);
+    // And version 2 means one thing, which is what `unique (character_id, version)` is for.
+    expect(
+      (await listCharacterVersions(database.db, { ...nia, characterId })).map(
+        (entry) => entry.version,
+      ),
+    ).toEqual([2, 1]);
+  });
+
+  it("will not version a character in a series the caller cannot reach", async () => {
+    const nia = await memberWithSeries("nia");
+    const ravi = await memberWithSeries("ravi");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+
+    const attempt = await addCharacterVersion(database.db, {
+      workspaceId: nia.workspaceId,
+      seriesId: nia.seriesId,
+      userId: ravi.userId,
+      characterId: created?.id as string,
+      appearance: "Taken Over",
+      revision: 1,
+    });
+
+    // Missing, not stale: a stranger learns nothing about the revision of a character
+    // they cannot see.
+    expect(attempt).toEqual({ outcome: "missing" });
+  });
+
+  it("tells an unknown character apart from a stale revision", async () => {
+    const nia = await memberWithSeries("nia");
+
+    expect(
+      await addCharacterVersion(database.db, {
+        ...nia,
+        characterId: "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f",
+        appearance: "Nothing",
+        revision: 1,
+      }),
+    ).toEqual({ outcome: "missing" });
+  });
+
+  it("shows no history for a character the caller cannot reach", async () => {
+    const nia = await memberWithSeries("nia");
+    const ravi = await memberWithSeries("ravi");
+    const created = await createCharacter(database.db, {
+      ...nia,
+      name: "Ada",
+      appearance: APPEARANCE,
+    });
+
+    expect(
+      await listCharacterVersions(database.db, {
+        workspaceId: nia.workspaceId,
+        seriesId: nia.seriesId,
+        userId: ravi.userId,
+        characterId: created?.id as string,
+      }),
+    ).toEqual([]);
   });
 });

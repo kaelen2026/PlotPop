@@ -3,18 +3,22 @@ import type { AuthService } from "@plotpop/auth";
 import {
   type Character,
   characterCreateInputSchema,
+  characterSchema,
+  characterVersionCreateInputSchema,
   seriesSchema,
   workspaceSchema,
 } from "@plotpop/contracts";
 import {
+  addCharacterVersion,
   type CharacterRecord,
   createCharacter,
   type Database,
   findSeriesForMember,
   listCharactersForSeries,
+  listCharacterVersions,
 } from "@plotpop/db";
 import { Hono } from "hono";
-import { notFound, validationFailed } from "../errors.js";
+import { notFound, revisionConflict, validationFailed } from "../errors.js";
 import { requireSession, type SessionEnv } from "../middleware/session.js";
 
 export type CharacterRouteDependencies = {
@@ -53,6 +57,16 @@ function parsePath(workspaceId: string, seriesId: string) {
   return { workspaceId: workspace.data, seriesId: series.data };
 }
 
+/** The same reasoning, with the character's own id on the end of the path. */
+function parseCharacterPath(workspaceId: string, seriesId: string, characterId: string) {
+  const path = parsePath(workspaceId, seriesId);
+  const character = characterSchema.shape.id.safeParse(characterId);
+
+  if (path === null || !character.success) return null;
+
+  return { ...path, characterId: character.data };
+}
+
 /**
  * A series' cast (`docs/ai-comic-drama-saas-design.md` §20.2, §32.7).
  *
@@ -65,49 +79,114 @@ function parsePath(workspaceId: string, seriesId: string) {
  * handlers typed (`routes/series.ts` says why).
  */
 export function createCharacterRoutes({ db, auth }: CharacterRouteDependencies) {
-  return new Hono<SessionEnv>()
-    .use(requireSession(auth))
-    .get("/:workspaceId/series/:seriesId/characters", async (c) => {
-      const path = parsePath(c.req.param("workspaceId"), c.req.param("seriesId"));
-
-      if (path === null) return c.json(notFound(), 404);
-
-      /*
-       * The check an empty list cannot make. `listCharactersForSeries` answers an
-       * unreachable series and an empty cast the same way, on purpose, so that no row
-       * can leak; this is what distinguishes them for the caller.
-       */
-      const series = await findSeriesForMember(db, { ...path, userId: c.var.user.id });
-
-      if (series === null) return c.json(notFound(), 404);
-
-      const characters = await listCharactersForSeries(db, { ...path, userId: c.var.user.id });
-
-      return c.json({ characters: characters.map(toPayload) }, 200);
-    })
-    .post(
-      "/:workspaceId/series/:seriesId/characters",
-      zValidator("json", characterCreateInputSchema, (result, c) =>
-        result.success ? undefined : c.json(validationFailed(), 400),
-      ),
-      async (c) => {
+  return (
+    new Hono<SessionEnv>()
+      .use(requireSession(auth))
+      .get("/:workspaceId/series/:seriesId/characters", async (c) => {
         const path = parsePath(c.req.param("workspaceId"), c.req.param("seriesId"));
 
         if (path === null) return c.json(notFound(), 404);
 
-        const input = c.req.valid("json");
-        const created = await createCharacter(db, {
-          ...path,
-          userId: c.var.user.id,
-          name: input.name,
-          appearance: input.appearance,
-        });
+        /*
+         * The check an empty list cannot make. `listCharactersForSeries` answers an
+         * unreachable series and an empty cast the same way, on purpose, so that no row
+         * can leak; this is what distinguishes them for the caller.
+         */
+        const series = await findSeriesForMember(db, { ...path, userId: c.var.user.id });
 
-        // `null` means the series was not reachable: the write scoped itself, and nothing
-        // was stored. Same answer as an id that names nothing.
-        if (created === null) return c.json(notFound(), 404);
+        if (series === null) return c.json(notFound(), 404);
 
-        return c.json(toPayload(created), 201);
-      },
-    );
+        const characters = await listCharactersForSeries(db, { ...path, userId: c.var.user.id });
+
+        return c.json({ characters: characters.map(toPayload) }, 200);
+      })
+      .post(
+        "/:workspaceId/series/:seriesId/characters",
+        zValidator("json", characterCreateInputSchema, (result, c) =>
+          result.success ? undefined : c.json(validationFailed(), 400),
+        ),
+        async (c) => {
+          const path = parsePath(c.req.param("workspaceId"), c.req.param("seriesId"));
+
+          if (path === null) return c.json(notFound(), 404);
+
+          const input = c.req.valid("json");
+          const created = await createCharacter(db, {
+            ...path,
+            userId: c.var.user.id,
+            name: input.name,
+            appearance: input.appearance,
+          });
+
+          // `null` means the series was not reachable: the write scoped itself, and nothing
+          // was stored. Same answer as an id that names nothing.
+          if (created === null) return c.json(notFound(), 404);
+
+          return c.json(toPayload(created), 201);
+        },
+      )
+      /*
+       * A version is appended, never edited, so this is a `POST` to a collection rather than
+       * a `PATCH` of the character: an episode generated with version 2 has to keep finding
+       * version 2 (§32.7). The revision in the body is what makes the append conditional on
+       * the appearance the caller actually read (§20.6).
+       */
+      .post(
+        "/:workspaceId/series/:seriesId/characters/:characterId/versions",
+        zValidator("json", characterVersionCreateInputSchema, (result, c) =>
+          result.success ? undefined : c.json(validationFailed(), 400),
+        ),
+        async (c) => {
+          const path = parseCharacterPath(
+            c.req.param("workspaceId"),
+            c.req.param("seriesId"),
+            c.req.param("characterId"),
+          );
+
+          if (path === null) return c.json(notFound(), 404);
+
+          const input = c.req.valid("json");
+          const result = await addCharacterVersion(db, {
+            ...path,
+            userId: c.var.user.id,
+            appearance: input.appearance,
+            revision: input.revision,
+          });
+
+          if (result.outcome === "missing") return c.json(notFound(), 404);
+          if (result.outcome === "stale") return c.json(revisionConflict(), 409);
+
+          return c.json(toPayload(result.character), 201);
+        },
+      )
+      .get("/:workspaceId/series/:seriesId/characters/:characterId/versions", async (c) => {
+        const path = parseCharacterPath(
+          c.req.param("workspaceId"),
+          c.req.param("seriesId"),
+          c.req.param("characterId"),
+        );
+
+        if (path === null) return c.json(notFound(), 404);
+
+        const versions = await listCharacterVersions(db, { ...path, userId: c.var.user.id });
+
+        /*
+         * A character always has at least one version, so an empty history means the
+         * character is not the caller's to see. The absence is the answer here, which is why
+         * this route needs no separate reachability read.
+         */
+        if (versions.length === 0) return c.json(notFound(), 404);
+
+        return c.json(
+          {
+            versions: versions.map((entry) => ({
+              version: entry.version,
+              appearance: entry.appearance,
+              createdAt: entry.createdAt.toISOString(),
+            })),
+          },
+          200,
+        );
+      })
+  );
 }

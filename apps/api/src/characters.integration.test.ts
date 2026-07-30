@@ -2,6 +2,7 @@ import {
   apiErrorSchema,
   characterListSchema,
   characterSchema,
+  characterVersionListSchema,
   seriesSchema,
   workspaceSchema,
 } from "@plotpop/contracts";
@@ -71,6 +72,23 @@ describe("character routes", () => {
 
   function characters() {
     return client().api.v1.workspaces[":workspaceId"].series[":seriesId"].characters;
+  }
+
+  /** One character's versions: appended to, never rewritten (§32.7). */
+  function versions() {
+    return characters()[":characterId"].versions;
+  }
+
+  async function createCharacter(name: string) {
+    const response = await characters().$post(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId },
+        json: { name, appearance: APPEARANCE },
+      },
+      as(nia),
+    );
+
+    return characterSchema.parse(await response.json());
   }
 
   it("creates a character with its first version and lists it back", async () => {
@@ -243,5 +261,145 @@ describe("character routes", () => {
     expect(
       characterListSchema.parse(await first.json()).characters.map((entry) => entry.name),
     ).not.toContain("Only In The Second");
+  });
+
+  it("appends a version and reports the character at its new one", async () => {
+    const character = await createCharacter("Versioned");
+
+    const added = await versions().$post(
+      {
+        param: {
+          workspaceId: niaWorkspaceId,
+          seriesId: niaSeriesId,
+          characterId: character.id,
+        },
+        json: { appearance: "Now with a shaved head.", revision: character.revision },
+      },
+      as(nia),
+    );
+
+    expect(added.status).toBe(201);
+    expect(characterSchema.parse(await added.json())).toMatchObject({
+      id: character.id,
+      revision: character.revision + 1,
+      currentVersion: { version: 2, appearance: "Now with a shaved head." },
+    });
+  });
+
+  it("reads the history newest first, with the first version untouched", async () => {
+    const character = await createCharacter("Historied");
+
+    await versions().$post(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id },
+        json: { appearance: "Second look.", revision: character.revision },
+      },
+      as(nia),
+    );
+
+    const listed = await versions().$get(
+      { param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id } },
+      as(nia),
+    );
+
+    expect(listed.status).toBe(200);
+    // An episode made with version 1 has to keep finding version 1 exactly as it was.
+    expect(
+      characterVersionListSchema
+        .parse(await listed.json())
+        .versions.map((entry) => [entry.version, entry.appearance]),
+    ).toEqual([
+      [2, "Second look."],
+      [1, APPEARANCE],
+    ]);
+  });
+
+  it("answers a stale revision with a conflict the caller can act on", async () => {
+    const character = await createCharacter("Contested");
+    const request = {
+      param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id },
+      json: { appearance: "First change.", revision: character.revision },
+    };
+
+    expect((await versions().$post(request, as(nia))).status).toBe(201);
+
+    // The same request again is what a second tab sends: it still carries revision 1.
+    const stale = await versions().$post(request, as(nia));
+
+    expect(stale.status).toBe(409);
+    expect(apiErrorSchema.parse(await stale.json()).error).toMatchObject({
+      code: "conflict",
+      action: "reload",
+    });
+
+    // And nothing was appended by the refused write.
+    const listed = await versions().$get(
+      { param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id } },
+      as(nia),
+    );
+    expect(
+      characterVersionListSchema.parse(await listed.json()).versions.map((entry) => entry.version),
+    ).toEqual([2, 1]);
+  });
+
+  it("hides another creator's character from versioning and from its history", async () => {
+    const character = await createCharacter("Private");
+
+    const added = await versions().$post(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id },
+        json: { appearance: "Taken over.", revision: character.revision },
+      },
+      as(ravi),
+    );
+
+    expect(added.status).toBe(404);
+
+    const listed = await versions().$get(
+      { param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId: character.id } },
+      as(ravi),
+    );
+
+    expect(listed.status).toBe(404);
+  });
+
+  it("answers an unknown or malformed character id as not found", async () => {
+    for (const characterId of ["0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f", "not-a-uuid"]) {
+      const listed = await versions().$get(
+        { param: { workspaceId: niaWorkspaceId, seriesId: niaSeriesId, characterId } },
+        as(nia),
+      );
+
+      expect(listed.status).toBe(404);
+    }
+  });
+
+  it("refuses a version that carries no revision", async () => {
+    const character = await createCharacter("Unversioned Request");
+
+    const response = await harness.app.request(
+      `/api/v1/workspaces/${niaWorkspaceId}/series/${niaSeriesId}/characters/${character.id}/versions`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: nia.cookie },
+        body: JSON.stringify({ appearance: "No revision." }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(apiErrorSchema.parse(await response.json()).error.code).toBe("validation_failed");
+  });
+
+  it("refuses a version without a session", async () => {
+    const response = await versions().$post({
+      param: {
+        workspaceId: niaWorkspaceId,
+        seriesId: niaSeriesId,
+        characterId: "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f",
+      },
+      json: { appearance: "Uninvited.", revision: 1 },
+    });
+
+    expect(response.status).toBe(401);
   });
 });
