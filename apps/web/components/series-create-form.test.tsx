@@ -39,6 +39,7 @@ vi.mock("@/lib/api-client", () => ({
  * alone.
  */
 const COPY = messages.series.create;
+const NAME = messages.series.name;
 
 const WORKSPACE_ID = "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f";
 
@@ -64,7 +65,7 @@ describe("series create form", () => {
   it("sends the name to the workspace's series collection", async () => {
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
 
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "Rooftop Confessions");
+    await userEvent.type(screen.getByLabelText(NAME.label), "Rooftop Confessions");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     expect(post).toHaveBeenCalledWith({
@@ -76,7 +77,7 @@ describe("series create form", () => {
   it("sends the trimmed name, so a stray space cannot become part of it", async () => {
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
 
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "  Midnight Diner  ");
+    await userEvent.type(screen.getByLabelText(NAME.label), "  Midnight Diner  ");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     expect(post).toHaveBeenCalledWith({
@@ -88,13 +89,13 @@ describe("series create form", () => {
   it("empties the field and asks the page to re-read the library", async () => {
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
 
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "Rooftop Confessions");
+    await userEvent.type(screen.getByLabelText(NAME.label), "Rooftop Confessions");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     // The list is rendered by the server component, so a created series only
     // appears once the page re-reads it.
     expect(refresh).toHaveBeenCalled();
-    expect(screen.getByLabelText(COPY.name.label)).toHaveValue("");
+    expect(screen.getByLabelText(NAME.label)).toHaveValue("");
   });
 
   it("asks the api for nothing when the name is blank", async () => {
@@ -102,35 +103,35 @@ describe("series create form", () => {
 
     // Whitespace only: the contract trims before measuring, so this is empty rather
     // than three characters long, and the person is told which.
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "   ");
+    await userEvent.type(screen.getByLabelText(NAME.label), "   ");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     expect(post).not.toHaveBeenCalled();
-    expect(screen.getByText(COPY.name.errors.required)).toBeInTheDocument();
-    expect(screen.getByLabelText(COPY.name.label)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(NAME.errors.required)).toBeInTheDocument();
+    expect(screen.getByLabelText(NAME.label)).toHaveAttribute("aria-invalid", "true");
   });
 
   it("refuses a name longer than the contract allows and says which limit", async () => {
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
 
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "A".repeat(121));
+    await userEvent.type(screen.getByLabelText(NAME.label), "A".repeat(121));
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     expect(post).not.toHaveBeenCalled();
-    expect(screen.getByText(COPY.name.errors.tooLong)).toBeInTheDocument();
+    expect(screen.getByText(NAME.errors.tooLong)).toBeInTheDocument();
   });
 
   it("keeps what was typed and explains it when the api refuses", async () => {
     post.mockResolvedValue({ status: 404, json: async () => ({}) });
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
 
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "Rooftop Confessions");
+    await userEvent.type(screen.getByLabelText(NAME.label), "Rooftop Confessions");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(COPY.failed);
     // Retyping a name because a request failed is the kind of small insult that
     // makes people stop trusting a tool.
-    expect(screen.getByLabelText(COPY.name.label)).toHaveValue("Rooftop Confessions");
+    expect(screen.getByLabelText(NAME.label)).toHaveValue("Rooftop Confessions");
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -146,7 +147,7 @@ describe("series create form", () => {
     );
 
     render(<SeriesCreateForm workspaceId={WORKSPACE_ID} />);
-    await userEvent.type(screen.getByLabelText(COPY.name.label), "Rooftop Confessions");
+    await userEvent.type(screen.getByLabelText(NAME.label), "Rooftop Confessions");
     await userEvent.click(screen.getByRole("button", { name: COPY.submit }));
 
     const pending = screen.getByRole("button", { name: COPY.pending });

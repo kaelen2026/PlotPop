@@ -38,6 +38,11 @@ F-01 已全部完成：
 
 **F-04 进行中：**
 
+- F-04.02：系列重命名与 Revision 乐观锁。`seriesRenameInputSchema`（名字 + **必填** revision）进 `packages/contracts`；`renameSeries` 是条件更新 —— 成员身份、workspace 与 revision 全在 `where` 里，陈旧或越权的写匹配不到行，而不是先写后报。三个结果 `renamed | stale | missing` 对应 200 / 409 / 404：`stale` 说「重新读一遍」，别人的系列一律 `missing`，陌生人不会被告知自己猜错了 revision。
+  - `apiErrorActionSchema` 新增 `reload`。revision 冲突用 `retry` 是错的 —— 同一个请求体带着同一个陈旧 revision，重试必然同样失败。
+  - 列表行变成客户端组件 `series-row.tsx`（重命名是交互，外面的列表仍是服务端读）。冲突时**不自动刷新**：背着人重读会把刚打的字冲掉，所以刷新是一个按钮而不是一个副作用。
+  - `series.name` 的 label 与两条错误文案在本地化资源里只有一份，创建与重命名共用 —— 两份「太长了」就是对同一个问题的两个答案。
+
 - F-04.01：系列的创建与列表。`seriesSchema` / `seriesListSchema` / `seriesCreateInputSchema` 进 `packages/contracts`；迁移 `0002_series.sql` 与 `packages/db/src/series.ts`；`/api/v1/workspaces/:workspaceId/series` 的 GET 与 POST；Web `/series` 是**第一个读真实数据的页面**。§6.1 里只落了名字 —— 角色、声音、风格手册与默认生成设置随后续切片，一列没有页面能写的字段，含义会被第一个碰它的人决定。
   - 归属条件写在查询里：`listSeriesForWorkspace` 用 `workspace_member` 内连接，`createSeries` 在同一事务里先确认成员身份、再用**校验查询返回的** workspace id 写入。别人的 Workspace 一律 404 而非 403，读写都是。
   - 服务端渲染读数据经 `apps/web/lib/api-server.ts`（手动转发 Cookie —— 服务端渲染是另一个请求，没人替它带上），浏览器写数据经 `apps/web/lib/api-client.ts`（base url 为空，走同源 Rewrite）。写成功后 `router.refresh()` 让服务端重读，表单不留第二份列表。

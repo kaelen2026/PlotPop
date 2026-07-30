@@ -28,6 +28,17 @@ export function notFound(): ApiError {
 }
 
 /**
+ * The record moved on since the caller read it (§20.6).
+ *
+ * `reload` rather than `retry`: sending the same body again would fail the same way,
+ * because the revision it carries is the stale one. The caller has to read the record
+ * as it now stands and decide what to do about the change someone else made.
+ */
+export function revisionConflict(): ApiError {
+  return apiError("conflict", "errors.revisionConflict", "reload");
+}
+
+/**
  * The body did not match the contract.
  *
  * Which field failed is deliberately absent: the same Zod schema validated the

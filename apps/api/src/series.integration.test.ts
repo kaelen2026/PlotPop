@@ -55,6 +55,11 @@ describe("series routes", () => {
     return client().api.v1.workspaces[":workspaceId"].series;
   }
 
+  /** One series inside that collection. */
+  function seriesEntry() {
+    return client().api.v1.workspaces[":workspaceId"].series[":seriesId"];
+  }
+
   it("creates a series in the caller's workspace and lists it back", async () => {
     const created = await seriesRoute().$post(
       { param: { workspaceId: niaWorkspaceId }, json: { name: "Rooftop Confessions" } },
@@ -179,5 +184,135 @@ describe("series routes", () => {
     expect(
       seriesListSchema.parse(await listed.json()).series.map((entry) => entry.name),
     ).not.toContain("Ravi's Series");
+  });
+
+  it("renames a series the caller can see", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Rooftop Confessions" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+
+    const renamed = await seriesEntry().$patch(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: series.id },
+        json: { name: "Rooftop Confessions, Season One", revision: series.revision },
+      },
+      as(nia),
+    );
+
+    expect(renamed.status).toBe(200);
+    expect(seriesSchema.parse(await renamed.json())).toMatchObject({
+      id: series.id,
+      name: "Rooftop Confessions, Season One",
+      revision: series.revision + 1,
+    });
+  });
+
+  it("answers a stale revision with a conflict the caller can act on", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Midnight Diner" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+    const rename = {
+      param: { workspaceId: niaWorkspaceId, seriesId: series.id },
+      json: { name: "Renamed", revision: series.revision },
+    };
+
+    expect((await seriesEntry().$patch(rename, as(nia))).status).toBe(200);
+
+    // The same request again is what a second tab sends: it still carries revision 1.
+    const stale = await seriesEntry().$patch(rename, as(nia));
+
+    expect(stale.status).toBe(409);
+    expect(apiErrorSchema.parse(await stale.json()).error).toMatchObject({
+      code: "conflict",
+      // Retrying this body would fail identically; the caller has to read it again.
+      action: "reload",
+    });
+  });
+
+  it("hides another member's series from a rename", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Private Series" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+
+    const response = await seriesEntry().$patch(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: series.id },
+        json: { name: "Taken Over", revision: series.revision },
+      },
+      as(ravi),
+    );
+
+    // Not found rather than conflict: a stranger must not learn the revision of a
+    // series they cannot see, and least of all be told they guessed it wrong.
+    expect(response.status).toBe(404);
+
+    const listed = await seriesRoute().$get({ param: { workspaceId: niaWorkspaceId } }, as(nia));
+    expect(seriesListSchema.parse(await listed.json()).series.map((entry) => entry.name)).toContain(
+      "Private Series",
+    );
+  });
+
+  it("answers an unknown series as not found", async () => {
+    const response = await seriesEntry().$patch(
+      {
+        param: {
+          workspaceId: niaWorkspaceId,
+          seriesId: "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f",
+        },
+        json: { name: "Nothing", revision: 1 },
+      },
+      as(nia),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("answers a malformed series id as an unknown one", async () => {
+    const response = await seriesEntry().$patch(
+      {
+        param: { workspaceId: niaWorkspaceId, seriesId: "not-a-uuid" },
+        json: { name: "Nothing", revision: 1 },
+      },
+      as(nia),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("refuses a rename that carries no revision", async () => {
+    const created = await seriesRoute().$post(
+      { param: { workspaceId: niaWorkspaceId }, json: { name: "Unversioned" } },
+      as(nia),
+    );
+    const series = seriesSchema.parse(await created.json());
+
+    // §20.6 makes the revision the whole point of the route: a rename without one is
+    // a rename that silently overwrites someone else's.
+    const response = await harness.app.request(
+      `/api/v1/workspaces/${niaWorkspaceId}/series/${series.id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json", cookie: nia.cookie },
+        body: JSON.stringify({ name: "No Revision" }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(apiErrorSchema.parse(await response.json()).error.code).toBe("validation_failed");
+  });
+
+  it("refuses a rename without a session", async () => {
+    const response = await seriesEntry().$patch({
+      param: { workspaceId: niaWorkspaceId, seriesId: "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f" },
+      json: { name: "Uninvited", revision: 1 },
+    });
+
+    expect(response.status).toBe(401);
   });
 });

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { coreMigrationSource } from "./migration-source.js";
 import { applyMigrations } from "./migrations.js";
 import { WORKSPACE_OWNER_ROLE } from "./schema.js";
-import { createSeries, listSeriesForWorkspace } from "./series.js";
+import { createSeries, listSeriesForWorkspace, renameSeries } from "./series.js";
 import { identityFixtureSource } from "./testing/identity.js";
 import { createTestDatabase, type TestDatabase } from "./testing/temp-database.js";
 
@@ -159,5 +159,108 @@ describe("listing a workspace's series", () => {
         userId: ravi.userId,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("renaming a series", () => {
+  it("stores the new name and moves the revision on", async () => {
+    const nia = await createMember("nia");
+    const created = await createSeries(database.db, { ...nia, name: "Rooftop Confessions" });
+
+    const result = await renameSeries(database.db, {
+      ...nia,
+      seriesId: created?.id as string,
+      name: "Rooftop Confessions, Season One",
+      revision: 1,
+    });
+
+    expect(result).toEqual({
+      outcome: "renamed",
+      series: expect.objectContaining({
+        id: created?.id,
+        name: "Rooftop Confessions, Season One",
+        // §20.6: the revision is what the next writer has to carry back, so it has to
+        // move even though nothing else about the row did.
+        revision: 2,
+      }),
+    });
+  });
+
+  /*
+   * The invariant `.claude/rules/tdd.md` §3 asks for: a stale write is refused rather
+   * than applied. Two creators on the same series is the future; two tabs belonging to
+   * one creator is today, and neither should be able to erase the other silently.
+   */
+  it("refuses a rename that carries a revision the row has moved past", async () => {
+    const nia = await createMember("nia");
+    const created = await createSeries(database.db, { ...nia, name: "Rooftop Confessions" });
+    const seriesId = created?.id as string;
+
+    await renameSeries(database.db, { ...nia, seriesId, name: "Renamed Once", revision: 1 });
+
+    const stale = await renameSeries(database.db, {
+      ...nia,
+      seriesId,
+      name: "Renamed From A Stale Tab",
+      revision: 1,
+    });
+
+    expect(stale).toEqual({ outcome: "stale" });
+    expect((await listSeriesForWorkspace(database.db, nia)).map((entry) => entry.name)).toEqual([
+      "Renamed Once",
+    ]);
+  });
+
+  it("tells a stale revision apart from a series that does not exist", async () => {
+    // The caller can act on the difference: one means read again, the other means the
+    // series is gone. Answering both the same way would make the first unrecoverable.
+    const nia = await createMember("nia");
+
+    expect(
+      await renameSeries(database.db, {
+        ...nia,
+        seriesId: "0f1a0f3a-6c4d-4f77-9c0b-1a2b3c4d5e6f",
+        name: "Nothing",
+        revision: 1,
+      }),
+    ).toEqual({ outcome: "missing" });
+  });
+
+  it("will not rename a series in a workspace the caller is not a member of", async () => {
+    const nia = await createMember("nia");
+    const ravi = await createMember("ravi");
+    const created = await createSeries(database.db, { ...nia, name: "Rooftop Confessions" });
+
+    const attempt = await renameSeries(database.db, {
+      workspaceId: nia.workspaceId,
+      userId: ravi.userId,
+      seriesId: created?.id as string,
+      name: "Taken Over",
+      revision: 1,
+    });
+
+    // Missing, not stale: a stranger learns nothing about the revision of a series
+    // they cannot see.
+    expect(attempt).toEqual({ outcome: "missing" });
+    expect((await listSeriesForWorkspace(database.db, nia)).map((entry) => entry.name)).toEqual([
+      "Rooftop Confessions",
+    ]);
+  });
+
+  it("keeps one of two concurrent renames and reports the other as stale", async () => {
+    const nia = await createMember("nia");
+    const created = await createSeries(database.db, { ...nia, name: "Rooftop Confessions" });
+    const seriesId = created?.id as string;
+
+    const [first, second] = await Promise.all([
+      renameSeries(database.db, { ...nia, seriesId, name: "From Tab One", revision: 1 }),
+      renameSeries(database.db, { ...nia, seriesId, name: "From Tab Two", revision: 1 }),
+    ]);
+
+    const outcomes = [first.outcome, second.outcome].sort();
+    expect(outcomes).toEqual(["renamed", "stale"]);
+
+    const [stored] = await listSeriesForWorkspace(database.db, nia);
+    expect(stored?.revision).toBe(2);
   });
 });

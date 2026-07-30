@@ -21,6 +21,9 @@ const COPY = {
   submit: "Create series",
   listHeading: "Your series",
   navSeries: "Series",
+  rename: "Rename",
+  save: "Save",
+  conflict: "This series changed somewhere else.",
 } as const;
 
 test("a new account starts with an empty library and can fill it", async ({ page }) => {
@@ -83,4 +86,76 @@ test("the library is reachable from the shell without typing a url", async ({ pa
     .click();
 
   await expect(page.getByRole("heading", { name: COPY.title, level: 1 })).toBeVisible();
+});
+
+test("a series can be renamed, and the new name is what was stored", async ({ page }) => {
+  await signUpThroughApi(page, testAccount("series-rename"));
+
+  await page.goto("/series");
+  await page.getByLabel(COPY.nameLabel).fill("Rooftop Confesions");
+  await page.getByRole("button", { name: COPY.submit }).click();
+
+  const library = page.getByRole("list", { name: COPY.listHeading });
+  await expect(library).toContainText("Rooftop Confesions");
+
+  await library.getByRole("button", { name: COPY.rename }).click();
+  // Scoped to the row: the create form below carries the same field label, and an
+  // unscoped query would type into it while proving nothing about the rename.
+  await library.getByLabel(COPY.nameLabel).fill("Rooftop Confessions");
+  await library.getByRole("button", { name: COPY.save }).click();
+
+  await expect(library).toContainText("Rooftop Confessions");
+
+  // Reloaded, so what is on screen came back from the database rather than from the
+  // row's own state.
+  await page.reload();
+  await expect(page.getByRole("list", { name: COPY.listHeading })).toContainText(
+    "Rooftop Confessions",
+  );
+});
+
+/*
+ * The revision conflict, driven the only way a browser can reach it: the page holds
+ * revision 1, something else moves the series on, and the form's rename arrives stale.
+ * Two tabs belonging to one creator is exactly this, and it is the case §20.6 exists for.
+ */
+test("a rename from a page that has gone stale is refused, not applied", async ({ page }) => {
+  await signUpThroughApi(page, testAccount("series-stale"));
+
+  await page.goto("/series");
+  await page.getByLabel(COPY.nameLabel).fill("Original");
+  await page.getByRole("button", { name: COPY.submit }).click();
+
+  const library = page.getByRole("list", { name: COPY.listHeading });
+  await expect(library).toContainText("Original");
+
+  // Open the form while it still believes the series is at revision 1.
+  await library.getByRole("button", { name: COPY.rename }).click();
+  await page.getByLabel(COPY.nameLabel).nth(1).fill("From The Open Form");
+
+  // Meanwhile, the series moves on. Through the api, because a second browser context
+  // would not share this page's session.
+  const workspace = await page.request.get("/api/v1/workspaces/current");
+  const { id: workspaceId } = (await workspace.json()) as { id: string };
+  const listed = await page.request.get(`/api/v1/workspaces/${workspaceId}/series`);
+  const { series } = (await listed.json()) as { series: { id: string; revision: number }[] };
+  const target = series[0] as { id: string; revision: number };
+
+  const elsewhere = await page.request.patch(
+    `/api/v1/workspaces/${workspaceId}/series/${target.id}`,
+    { data: { name: "Renamed Elsewhere", revision: target.revision } },
+  );
+  expect(elsewhere.status()).toBe(200);
+
+  await library.getByRole("button", { name: COPY.save }).click();
+
+  // Scoped to the row as well: Next's route announcer is also an `alert`.
+  await expect(library.getByRole("alert")).toContainText(COPY.conflict);
+  // And the stale name was not written: the update was conditional, so nothing was
+  // silently overwritten.
+  await page.reload();
+  await expect(page.getByRole("list", { name: COPY.listHeading })).toContainText(
+    "Renamed Elsewhere",
+  );
+  await expect(page.getByText("From The Open Form")).toBeHidden();
 });

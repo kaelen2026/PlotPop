@@ -8,6 +8,7 @@ import {
 } from "@plotpop/ui/components/ui/empty";
 import { Library } from "lucide-react";
 import { SeriesCreateForm } from "@/components/series-create-form";
+import { SeriesRow } from "@/components/series-row";
 import { messages } from "@/locales/en";
 
 const COPY = messages.series;
@@ -40,14 +41,7 @@ export function SeriesLibrary({ series, workspaceId }: { series: Series[]; works
           </h2>
           <ul aria-labelledby={LIST_HEADING_ID} className="flex flex-col">
             {series.map((entry) => (
-              <li
-                className="flex flex-wrap items-center justify-between gap-4 stroke-hairline-b py-4 last:border-b-0"
-                key={entry.id}
-              >
-                {/* Not a link yet: a series has no detail page until the slice that
-                    gives it one, and a link to nowhere is worse than plain text. */}
-                <span className="text-heading-xs">{entry.name}</span>
-              </li>
+              <SeriesRow key={entry.id} series={entry} workspaceId={workspaceId} />
             ))}
           </ul>
         </section>

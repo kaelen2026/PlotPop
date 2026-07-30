@@ -17,6 +17,12 @@ import { z } from "zod";
 
 export const SERIES_NAME_MAX_LENGTH = 120;
 
+/**
+ * Stated once, because creating and renaming a series have to agree on what a name
+ * is: two definitions would be two answers to "is this too long".
+ */
+const seriesNameSchema = z.string().trim().min(1).max(SERIES_NAME_MAX_LENGTH);
+
 export const seriesSchema = z.strictObject({
   id: z.uuid(),
   name: z.string().min(1),
@@ -44,7 +50,21 @@ export type SeriesList = z.infer<typeof seriesListSchema>;
  * and Zod's default messages are never displayed.
  */
 export const seriesCreateInputSchema = z.strictObject({
-  name: z.string().trim().min(1).max(SERIES_NAME_MAX_LENGTH),
+  name: seriesNameSchema,
 });
 
 export type SeriesCreateInput = z.infer<typeof seriesCreateInputSchema>;
+
+/**
+ * Renaming carries the revision the caller read (§20.6).
+ *
+ * It is required rather than optional on purpose: an update without one is an update
+ * that silently overwrites whatever someone else did in the meantime, and a client
+ * that cannot supply it has not read the series it is trying to rename.
+ */
+export const seriesRenameInputSchema = z.strictObject({
+  name: seriesNameSchema,
+  revision: seriesSchema.shape.revision,
+});
+
+export type SeriesRenameInput = z.infer<typeof seriesRenameInputSchema>;
